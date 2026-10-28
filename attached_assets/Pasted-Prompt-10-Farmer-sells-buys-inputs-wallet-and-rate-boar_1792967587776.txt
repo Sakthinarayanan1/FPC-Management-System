@@ -1,0 +1,92 @@
+Prompt 10: Farmer sells, buys inputs, wallet and rate board
+This replaces and extends the Farmer part of Prompt 7. Send it after Prompts 0 to 2. In the demo, Sita Devi hits the exact figures from the requirement (sells Rs 10,000, buys Rs 3,000, wallet Rs 7,000); Ravi Kumar shows the 1,000 kg paddy case at real market rates.
+Extend the FARMER role of the FPC prototype. Everything is mock data in the browser store (persist to localStorage). Mobile-first. Farmer sees OWN records only. Demo logins: Sita Devi (F-002) and Ravi Kumar (F-001).
+
+CONCEPT
+The FPC buys produce from the farmer and also sells farm inputs (seed, fertiliser, pesticide) to the same farmer. The farmer has a WALLET at the FPC. Sale proceeds are credited to the wallet, input purchases are debited from the wallet, and the balance stays in the wallet until the farmer withdraws it to the bank. Net rule: wallet balance = total sales credited - total input purchases - withdrawals + other credits (dividend, bonus).
+
+FARMER SCREENS
+1. HOME: wallet balance card (large), buttons Sell Produce, Buy Inputs, Rate Board, Withdraw; last 5 transactions; today's rate for paddy and tomato; notices.
+
+2. SELL PRODUCE (farmer sale request to the FPC)
+- Multi-line form: add one or more items: commodity (searchable list), quantity with unit (kg, quintal, tonne), expected delivery date, collection point (Main Godown Keonjhar or Satellite Godown Pitamahal), optional photo. Each line shows today's FPC buying rate and line amount live (quantity converted to base unit, e.g. 4 quintal = 400 kg).
+- Bottom summary: total sale value, estimated deductions (weighment 0, hamali Rs 0.20 per kg optional toggle), net.
+- Submit creates a Sale Request with status Requested. FPC Procurement then weighs and confirms. Build a simple "FPC confirms" action in the Procurement role so the demo can complete: Requested -> Weighed (actual quantity can differ, e.g. 1,000 kg becomes 988 kg) -> Approved -> Credited to wallet. Farmer sees status steps and a push notification at each step.
+
+3. BUY INPUTS (from FPC stock)
+- Product catalogue with category tabs (Seeds, Fertiliser, Pesticide, Tools and others), search, product cards (name, pack size, FPC selling rate, stock available, low-stock badge), Add to cart with quantity stepper. Cart shows line totals, GST where applicable, total.
+- Checkout: pay from wallet (default), shows "Wallet balance after purchase". If wallet is insufficient, offer: pay part from wallet and the rest as credit against the next sale, or reduce the cart. Order status: Placed, Ready for pickup, Collected. Reduces FPC stock when collected.
+
+4. WALLET
+- Balance, total credited, total debited, pending credits (sales not yet approved). Withdraw to bank: amount (cannot exceed balance), bank account (masked), submit, status Requested then Paid with a bank reference.
+- Statement download (mock PDF) and Excel.
+
+5. TRANSACTION HISTORY (every transaction, with details)
+Table with filters (date range, type, status), search, and a row detail drawer. Columns: Transaction ID (e.g. TXN-2026-000412), date and time, type (Sale credit, Input purchase, Withdrawal, Dividend credit, Patronage bonus, Adjustment), description, amount, credit or debit sign, wallet balance after, status, reference. The detail drawer shows: item lines (commodity or product, quantity with unit, rate, amount), taxes, deductions, linked document (Sale SAL-F-0007 or Order ORD-0031), who approved and when, payment mode (Wallet, Bank transfer), and a Download receipt button.
+
+DEMO DATA TO PRELOAD
+A) Sita Devi (F-002), exact scenario, dated 18 Oct 2026:
+- Sale SLF-2026-0007: Paddy 390 kg x Rs 25 = Rs 9,750; Tomato 10 kg x Rs 25 = Rs 250. Total sale Rs 10,000. Status Credited.
+- Order ORD-2026-0031: DAP fertiliser 50 kg bag x 1 = Rs 1,350; Paddy seed MTU-1010 25 kg x Rs 52 = Rs 1,300; Vermicompost 50 kg bag x 1 = Rs 350. Total Rs 3,000, paid from wallet.
+- Wallet: opening Rs 0, sale credit +Rs 10,000, input purchase -Rs 3,000, balance Rs 7,000. Show this on Home.
+B) Ravi Kumar (F-001), dated 12 Oct 2026:
+- Sale SLF-2026-0003: Paddy 1,000 kg x Rs 25 = Rs 25,000; Tomato 10 kg x Rs 30 = Rs 300. Total Rs 25,300.
+- Order ORD-2026-0019: Urea 45 kg bag x 2 = Rs 533; Neem pesticide 1 litre x 2 = Rs 840; Paddy seed 25 kg x Rs 52 = Rs 1,300; plus Vermicompost bag x 1 = Rs 350 (total Rs 3,023).
+- Wallet: +Rs 25,300 - Rs 3,023 = Rs 22,277; withdrawal of Rs 20,000 to bank on 14 Oct (ref UTIB2026101400873) gives Rs 2,277 balance.
+C) At least 12 more history rows for each farmer across the last 6 months (small tomato, maize, vegetables sales, seed and fertiliser orders, a dividend credit of Rs 50 and a patronage bonus of Rs 500 for Ravi).
+
+RATE BOARD (see next section) must be linked: sale lines use the buying rate, input lines use the FPC selling rate.
+
+RULES AND EDGE CASES
+- Wallet can never go negative; show a clear message.
+- Edit or cancel a Sale Request only while status is Requested.
+- Each wallet movement creates a Transaction and an AuditLog entry; FPC Accountant sees the same transactions in the farmer ledger.
+- Empty states and loading skeletons everywhere. Indian number format (Rs 7,000).
+Rate board for farmers
+Add a RATE BOARD screen for the Farmer (also reachable from Home, and shown to Shareholders and the FPC roles in read-only form).
+
+- Title: "FPC rates". A date filter segmented control: Today, Yesterday, 1 week ago, plus a date picker for any day in the last 90 days. Show the selected date and "Updated 08:30 AM by Prakash Rout".
+- Two tabs: "We buy from you" (produce) and "You buy from us" (inputs). Category chips: All, Grains, Pulses, Vegetables, Oilseeds, Seeds, Fertiliser, Pesticide. Search box.
+- List of items. Each row: item name, grade, unit (per 1 kg, per quintal, per bag), the rate for the selected date, the change versus the previous day (arrow, amount and percent), and a small sparkline of the last 7 days. Tap a row for a 30-day price line chart and a "Sell this" or "Buy this" button that prefills the form.
+- Toggle "Show in: kg | quintal" that converts rates (Rs 25 per kg = Rs 2,500 per quintal).
+- Seed these rates (Today | Yesterday | 1 week ago), all in Rs:
+  Produce, per 1 kg: Paddy common 25 | 24.5 | 23; Paddy grade A 27 | 27 | 25.5; Wheat 34 | 33.5 | 32; Maize 21 | 21 | 20; Arhar (tur) 72 | 71 | 69; Ragi 38 | 37.5 | 36; Mustard 58 | 58 | 56; Tomato 25 | 28 | 32; Potato 18 | 18 | 17; Onion 22 | 21 | 24; Brinjal 20 | 22 | 19.
+  Inputs: Paddy seed MTU-1010 per 1 kg 52 | 52 | 50; DAP per 50 kg bag 1,350 | 1,350 | 1,350; Urea per 45 kg bag 266.50 | 266.50 | 266.50; Vermicompost per 50 kg bag 350 | 350 | 340; Neem pesticide per 1 litre 420 | 420 | 410; Maize hybrid seed per 1 kg 310 | 310 | 300.
+- Footnote: "Rates are set by the FPC and can change daily. The rate on the day the produce is weighed applies." Procurement and Admin get an "Update rates" screen to edit today's rates (history is kept per day, one row per item per day) so the filters work off real data.
+Prompt 11: Shareholder registration, certificate, portal and reports
+This replaces the shareholder parts of Prompts 2, 3 and 7. Send it after Prompt 10. The 62 existing shareholders keep the totals below, so every report adds up.
+Build the complete SHAREHOLDER module for the FPC prototype: registration, buying more shares, share certificate, the shareholder's own view, and six reports. Mock data in the browser store, persisted to localStorage. Face value per share is Rs 100 (setting). Roles: FPC Admin and Data Entry register; Admin and Accountant approve and record payment; Compliance prints certificates; Shareholder views own data; Director and TSF view reports.
+
+A. SHAREHOLDER REGISTRATION (FPC Admin or Data Entry: Shareholders > Register)
+Step 0, search first: a search box "Search existing member by name, mobile, Aadhaar (last 4), Farmer ID or Shareholder ID". If a match is found, show the profile card and two buttons: "Buy additional shares" (flow B) and "View profile". If no match, show "Register new shareholder".
+Step 1, personal: Shareholder Name, Gender (Male, Female, Other), Category (General, OBC, SC, ST), Mobile Number (10 digits, starts 6 to 9, duplicate check), Aadhaar Number (12 digits, entered in groups of 4, stored and shown masked as XXXX XXXX 4821, duplicate check), optional link to an existing Farmer ID.
+Step 2, address and geography: Address (house, street, post office, PIN), then cascading dropdowns State, District, Block, Panchayat, Village (choosing a district filters blocks, and so on; seed Keonjhar district with blocks Keonjhar Sadar, Harichandanpur, Telkoi, Patna and 2 to 3 fictional panchayats and villages under each).
+Step 3, bank: Bank Account number (masked after entry), IFSC (auto-fills bank and branch name from a small mock list), account holder name.
+Step 4, share capital: Share Capital amount in Rs OR Number of shares (they stay in sync: shares = capital / 100; capital must be a multiple of Rs 100; minimum 1 share, show the FPC's maximum per member, e.g. 500 shares). Payment mode (Cash, UPI, Bank transfer, Cheque) and reference number, date.
+Step 5, review and submit: summary of everything, and auto-generated fields shown read-only: Unique ID number (format SH-0063, next after 62 existing), Share Certificate number (SC-0063), Folio Number (FL-0063), distinctive share numbers (e.g. 5,901 to 6,000 for 100 shares). Submit sends the registration to Admin for approval if the creator is Data Entry; Admin submits directly.
+On approval: status Active, an audit entry, a notification and SMS preview to the member, share capital total of the FPC increases, and a SHARE CERTIFICATE is generated (section C). Validate every field with clear error text. Save Draft and auto-save work on all steps.
+Prefill sample for demos (button "Fill sample"): Pramod Kumar Sahoo, Male, OBC, 98XXXX2145, Aadhaar XXXX XXXX 6037, village Rugudi (fictional), Panchayat Sanapatna (fictional), Block Harichandanpur, District Keonjhar, Odisha 758031, SBI account XXXXXX7342, IFSC SBIN0004567 (dummy), share capital Rs 5,000 = 50 shares.
+
+B. BUY ADDITIONAL SHARES (existing shareholder)
+From the search result or profile: "Buy additional shares" opens a short form: current holding (shares and capital), number of new shares or amount (kept in sync), payment mode and reference, date. Show the new total (e.g. 10 + 15 = 25 shares, Rs 2,500) before submitting. After approval: a new certificate for the new shares (SC-0064, folio unchanged, new distinctive number range) and the share history row "Additional allotment". Cap at the per-member maximum with a message. Do not create a new Unique ID.
+
+C. SHARE CERTIFICATE
+A printable certificate page (A4 landscape) with: FPC name and CIN, "Share Certificate" heading, certificate number, folio number, Unique ID, shareholder name, address, number of shares in words and numerals (e.g. Fifty (50) equity shares), face value Rs 100, total amount paid Rs 5,000, distinctive numbers from-to, date of allotment, note "One member, one vote", and two signature blocks (Chairperson Sunita Behera, CEO Bijay Kumar Mohanty) plus a QR placeholder. Buttons: Preview, Download PDF (mock), Print, Reissue duplicate (needs a reason). A "Certificates" list shows all issued certificates with search and bulk print.
+
+D. SHAREHOLDER VIEW (role Shareholder, mobile-first)
+Bottom tabs: Home, My Shares, FPC, Meetings, Profile.
+- Home: shares held, capital, member since, wallet balance if also a farmer, today's rates preview (3 items), next meeting countdown.
+- My Shares: Unique ID, Folio, certificate list with View and Download for each, share history (allotment, additional purchase, transfer), nominee. "Request additional shares" button sends a request to the FPC.
+- FPC tab: Today's FPC rates (reuse the Rate Board with Today, Yesterday, 1 week ago filters), FPC profit and loss summary for FY 2026-27 to date and FY 2025-26 (sales Rs 49,65,000; purchases Rs 41,80,000; operating expenses Rs 3,20,000; surplus before tax Rs 4,65,000; with a simple bar chart and the line "Dividend is declared by the general meeting and is not guaranteed"), dividend history, company profile, directors, key numbers (members, turnover, stock).
+- Meetings: upcoming AGM (21 Sep 2027 11:00 AM, Community Hall Green Valley, agenda list, notice PDF), RSVP and proxy request, past meetings with minutes and resolutions, voting note.
+- Profile: personal details, masked Aadhaar and bank, address and geography, request-correction button, language switcher.
+
+E. SHAREHOLDER REPORTS (Reports > Shareholder; available to Admin, Accountant, Compliance, Director; TSF sees all FPCs with an FPC filter). Each report has filters, a totals row, Export Excel, Export PDF, Print, and a chart where noted.
+1. Shareholder Register: Unique ID, Folio, name, gender, category, mobile, village, panchayat, block, district, shares, capital, certificate numbers, date admitted, status. Searchable, sortable, 62 rows.
+2. Share Capital Summary: authorised capital Rs 10,00,000; paid-up Rs 6,20,000; total shares 6,200; average holding 100 shares; capital by month raised (line chart); holding bands: 1 to 10 shares, 11 to 50, 51 to 100, over 100; top 10 shareholders.
+3. Gender-wise Shareholder Report: Male 38, Female 24, Other 0; shares and capital by gender (e.g. Male Rs 3,90,000, Female Rs 2,30,000); donut chart; women share %.
+4. Category-wise Member Report: General 14, OBC 12, SC 9, ST 27 (total 62); capital by category; stacked bar by gender within category.
+5. Geography-wise Shareholder Report: drill-down district > block > panchayat > village with counts, shares and capital (Keonjhar Sadar 31, Harichandanpur 14, Telkoi 10, Patna 7); click a row to see its members.
+6. Unique ID-wise Farmer Tracking Report: one row per Unique ID linked to the Farmer ID: shares and capital, quantity sold to FPC (kg) and value in the selected period, inputs bought, wallet balance, last transaction date, dividend and bonus received, KYC status, active or dormant. Search by Unique ID, click a row for a full tracking timeline (registration, share purchases, sales, input orders, withdrawals, dividends). Members who are shareholders but not farmers show a dash for farm columns.
+Make the seeded 62 shareholders consistent with these totals (generate realistic Odia names, mobile numbers masked, villages and amounts). Use Ravi Kumar (SH-001, 10 shares, Rs 1,000) and Sita Devi (SH-002, 25 shares, Rs 2,500) among them.
+After sending, check these quickly: register Pramod Kumar Sahoo, approve him as Admin, open his certificate, then log in as a shareholder and see it under My Shares.

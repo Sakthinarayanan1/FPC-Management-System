@@ -1,0 +1,32 @@
+Complete the FPC ADMIN / MANAGER role (Bijay Kumar Mohanty, Green Valley FPC) by building the checklist items that are still missing. Do not rebuild existing screens; add to them. Respect the permission map: Admin has VCEDAX style access as in the checklist. Every action writes an AuditLog row and sends notifications where relevant.
+
+1. ADMIN SETUP CHECKLIST WIDGET (Dashboard)
+A card "FPC setup checklist: 31 of 41 done (76%)" listing the 41 Admin checklist features grouped by module, each with a status tick (Done, Partly, Not started) and a link to its screen. Items start as Done only if the FPC has data for them (e.g. commodity master yes, dividend approval none yet). Clicking an undone item opens its screen. TSF sees the same percentage in its Journey view.
+
+2. APPROVAL INBOX: ADD MISSING TABS
+Add tabs to the existing inbox: Input Purchases (Flow D), Input Sales (Flow B), Dividends and patronage runs, Farmer link requests, Profile changes (from Prompt 15), Sub-user changes. Each opens the detail drawer with Approve or Reject (reason required), bulk approve, and notifies the submitter. Dividend approval drawer shows the per-shareholder table (capital x rate, e.g. Ravi Rs 1,000 x 5% = Rs 50), total payout, patronage bonus, and the note "Dividend is not guaranteed; declared by the general meeting". Seed 2 items in each new tab.
+
+3. BUYER AND SUPPLIER MASTER (Agri Business > Masters)
+Full create, edit, delete and export for Buyers and Suppliers (and view of Farmers). Buyer fields: name, type (Mill, Trader, Government agency, Retail), GSTIN, PAN, contact person, mobile, address, credit limit, payment terms in days, status. Supplier fields: name, category (Fertiliser, Pesticide, Seed, Equipment), GSTIN, contact, address, payment terms, bank account. Delete is a soft delete and is blocked when the party has open balances (message "Shree Balaji Rice Mills has Rs 10,000 outstanding"). Party profile shows transaction history and dues. Seed 6 buyers and 5 suppliers (Utkal Agro Inputs Pvt Ltd, Bhubaneswar and others).
+
+4. FINANCE SCREENS FOR ADMIN (Finance menu)
+Read and export access to farmer ledger, buyer ledger, supplier ledger, cash book, bank book, receipts and payments, expense register, income and expenditure statement and P&L (period filter), with the Accountant's data. Expense and payment approvals from the inbox link here. Show P&L with gross margin and the label "before operating expenses; not net profit". No create or edit buttons for ledger entries.
+
+5. COMPLIANCE FOR ADMIN (Compliance menu)
+View the statutory calendar, filing tracker, meeting records and document vault; Approve or Reject filings marked filed by the Compliance Officer; export the compliance report. Show the overdue banner (GSTR-3B for September) and licence expiry alerts from Prompt 15.
+
+6. FARMER RECORDS COMPLETION
+- Delete a farmer: soft delete with a reason, blocked when the farmer has wallet balance, advance or open vouchers (message explains why), reversible from a Deleted tab within 30 days.
+- Multi-FPC links: Farmers > Multi-FPC tab listing farmers present in more than one FPC (view only) and incoming link requests from other FPCs with Approve and Reject, showing which FPC requested and why.
+
+7. AUDIT TRAIL FOR ADMIN (Settings > Audit trail)
+Filterable table (time, user, role, module, record, action, old value, new value) with date, user, module filters, a before and after diff drawer, and Export Excel. Own FPC only. Seed 80 entries, including the Prompt 6 examples.
+
+8. OFFLINE MODE AND SYNC FOR ADMIN
+Same connectivity pill and "Simulate offline" toggle as Prompt 5. While offline, Admin can create drafts and view cached lists; approvals are disabled with the message "Approvals need a connection". Sync centre lists queued drafts with Sync now and retry.
+
+9. ANALYTICS AND KPI REPORTS (Dashboard > Analytics)
+FPC performance vs targets: farmers coverage (100 of 120 target), procurement vs plan (tonne), turnover trend, women farmers percent, input sales per member, average price realised vs mandi (Rs 25.0 vs Rs 22.5 per kg paddy), compliance score. Compare with the TSF network average (read-only benchmark). Export Excel and PDF.
+
+10. REGRESSION CHECK
+After building, produce a README table with the 41 Admin checklist rows, each marked Implemented and the screen path, and list any still stubbed. Then walk: approve a dividend run, delete a test farmer, approve a link request, view the audit trail, go offline and create a draft, then check the setup checklist percentage rose.

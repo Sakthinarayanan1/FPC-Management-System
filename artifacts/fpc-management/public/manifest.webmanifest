@@ -1,0 +1,9 @@
+{
+  "name": "FPC Desk — Management System",
+  "short_name": "FPC Desk",
+  "description": "A practical digital operations desk for farmer-owned producer companies.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f1f5f1",
+  "theme_color": "#1B5E20"
+}

@@ -1,0 +1,39 @@
+Build FPC ONBOARDING for the TSF Central Admin (Neha Sharma) and the COMPANY PROFILE edit screen for the FPC Admin (Bijay Kumar Mohanty). Both use one shared FPC record and one shared form component. Mock data in the store, persisted to localStorage, every change writes an AuditLog row.
+
+A. TSF: FPC > Onboard New FPC (wizard, 7 steps, progress bar, Save Draft, auto-save every 10 seconds, validation per step)
+Step 1, BASIC DETAILS: FPC Name, CIN (21 characters, e.g. U01100OD2021PTC035612), PAN (AAAAA9999A format), TAN (AAAA99999A format), GST number (15-character GSTIN, shows state code check), Logo (image upload with preview, max 2 MB).
+Step 2, LICENCES: FSSAI (14 digits), Seed License, Fertilizer License; each with number, issuing authority, issue date, expiry date, document upload; show an expiry chip (Valid, Expiring in 60 days, Expired).
+Step 3, ROC DETAILS: ROC office (e.g. RoC Cuttack), date of incorporation, registered office address, financial year end (31 March), last AGM date, last annual return filed date, status of statutory audit.
+Step 4, CAPITAL AND TURNOVER: Authorised Capital (Rs), Paid-up Capital (Rs, cannot exceed authorised), Turnover for the last 3 financial years (table), share face value (default Rs 100) and auto-computed number of shares.
+Step 5, EMPLOYEES AND BOD: Employee table (name, designation, mobile, date of joining, gender, full-time or part-time); Board of Directors table (name, DIN 8 digits, designation: Chairperson, CEO, Director; appointment date, gender, category General, OBC, SC, ST, mobile). Minimum 5 directors check, at least one woman director flag.
+Step 6, LOCATION AND ACTIVITIES: Address, State, District, Block (cascading dropdowns, seed Odisha and Jharkhand), PIN, GPS pin, Activity Details (multi-select: Produce aggregation, Input supply, Processing, Marketing, Custom Hiring Centre, Soil Testing, Credit linkage), main commodities, number of villages covered, target farmers.
+Step 7, ADMIN AND LIMITS: create the FPC Admin user (name, mobile, email, invite SMS preview), sub-user limit (default 25), multi-FPC rule inherit from TSF, review of everything with edit links, completeness percentage, Submit.
+Status flow: Draft > Submitted > Under review > Approved (Active) or Rejected (reason). TSF Programme Manager approves; on approval the FPC becomes Active, the Admin invite is sent, default masters (commodities, units) are copied, an audit row is written. Actions on the FPC list: Edit, Deactivate (reason), Reactivate, Delete (only while Draft or Rejected, confirm with typed name). "Fill sample" button loads Green Valley data below.
+Bulk import: download Excel template, upload filled file, validation report (rows read, valid, errors with reasons such as "Row 4: PAN format invalid"), import valid rows as Draft FPCs.
+
+B. FPC ADMIN: Settings > Company Profile
+Cards for each step above (Basic, Licences, ROC, Capital and turnover, Employees and BOD, Location and activities, Bank accounts). Each card has View and Edit. Rules:
+- Edit directly (applies at once, TSF is notified in its activity feed): logo, address, employees, BOD, activity details, contact details, bank accounts.
+- Needs TSF approval (shows a yellow "Pending TSF approval" chip, old value stays live until approved): CIN, PAN, TAN, GST number, authorised capital, paid-up capital, licence numbers.
+- Locked (read-only, shown with a lock icon and "Contact TSF"): FPC code, onboarding date.
+Before save, show a diff summary (old value, new value). A Change history tab lists who changed what and when. Licence expiry banner: Fertilizer license FL/KEO/2023/041 expires 14 Dec 2026 (48 days left) with a Renew reminder.
+
+C. OUTPUTS (Reports > FPC; TSF sees all FPCs with an FPC filter, FPC Admin sees own FPC). Each report has filters, totals row, a chart where noted, drill-down, Export Excel, PDF, Print.
+1. FPC Master Report: one row per FPC with code, name, CIN, state, district, block, status, onboarding date, farmers, shareholders, paid-up capital, turnover, last update.
+2. FPC Registration Details: single-FPC printable sheet with every field from steps 1 to 4 and documents list.
+3. License and Compliance Report: FSSAI, Seed, Fertilizer licences with expiry status, plus filing status (AGM, annual return, GST, TDS), overdue count; colour by expiry.
+4. Turnover Summary: turnover by FPC for 3 financial years, growth percent, bar chart, state and district roll-up.
+5. Member Statistics: farmers, shareholders, women percent, SC and ST percent, small and marginal percent per FPC, stacked bar and donut.
+6. Board of Directors and Employee Reports: directors with DIN and appointment date, women directors count, employees by designation and gender, vacancy flags.
+7. Geographic Presence Report: state > district > block table with FPC count, farmers and turnover, plus a simple tile-grid map coloured by farmers covered.
+
+SEED DATA (all dummy, fictional)
+1. Green Valley Farmer Producer Company Ltd. | FPC-ODI-001 | CIN U01100OD2021PTC035612 | PAN AAACG1234F | TAN BBNG01234A | GSTIN 21AAACG1234F1Z5 | FSSAI 21426012345678 | Seed license SL/KEO/2024/118 valid to 31 Mar 2027 | Fertilizer license FL/KEO/2023/041 valid to 14 Dec 2026 | RoC Cuttack, incorporated 14 Jun 2021 | Authorised capital Rs 10,00,000 | Paid-up Rs 6,20,000 | Turnover FY 2023-24 Rs 41,50,000, FY 2024-25 Rs 58,20,000, FY 2025-26 Rs 71,80,000 | 10 employees | 6 BOD (Sunita Behera Chairperson, Bijay Kumar Mohanty CEO, Ramesh Chandra Nayak, Laxmi Patra, Dillip Sahoo, Kanchan Munda) | Keonjhar Sadar block, Keonjhar, Odisha | Activities: aggregation, input supply, marketing, soil testing.
+2. Kalinganagar Agri Producers Co. | FPC-ODI-002 | U01100OD2020PTC033871 | Rs 25,00,000 / Rs 14,00,000 | turnover FY25-26 Rs 1,62,40,000 | 14 employees | 9 BOD | Jajpur, Odisha.
+3. Noamundi Millet Growers FPC | FPC-JHK-001 | U01100JH2021PTC016502 | Rs 15,00,000 / Rs 9,80,000 | Rs 82,60,000 | 9 employees | 7 BOD | West Singhbhum, Jharkhand.
+4. Seraikela Vegetable Growers FPC | FPC-JHK-002 | U01100JH2025PTC018224 | Rs 10,00,000 / Rs 0 (pending) | Rs 0 | 3 employees | 5 BOD | Seraikela-Kharsawan, Jharkhand | status Submitted, awaiting TSF approval, 60% complete.
+5. Gonda Tribal Farmers FPC | FPC-ODI-003 | U01100OD2021PTC036019 | Rs 15,00,000 / Rs 7,60,000 | Rs 38,90,000 | 7 employees | 7 BOD | Keonjhar, Odisha.
+6. Joda Pulse Producers FPC | FPC-ODI-004 | U01100OD2022PTC038455 | Rs 10,00,000 / Rs 5,50,000 | Rs 74,30,000 | 8 employees | 6 BOD | Keonjhar, Odisha.
+7. Chaibasa Organic FPC | FPC-JHK-003 | U01100JH2020PTC015977 | Rs 10,00,000 / Rs 4,40,000 | Rs 21,10,000 | 4 employees | 6 BOD | West Singhbhum, Jharkhand | Inactive since 30 Jun 2026.
+8. Barbil Oilseed Growers FPC | FPC-ODI-005 | U01100OD2022PTC039120 | Rs 20,00,000 / Rs 6,70,000 | Rs 55,70,000 | 8 employees | 8 BOD | Keonjhar, Odisha.
+Generate plausible PAN, TAN, GSTIN, FSSAI and licence numbers for 2 to 8, with two licences expired or expiring within 60 days.

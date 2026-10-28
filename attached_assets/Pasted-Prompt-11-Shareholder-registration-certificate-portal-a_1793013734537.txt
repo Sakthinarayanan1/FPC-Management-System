@@ -1,0 +1,165 @@
+Prompt 11: Shareholder registration, certificate, portal and reports
+This replaces the shareholder parts of Prompts 2, 3 and 7. Send it after Prompt 10. The 62 existing shareholders keep the totals below, so every report adds up.
+Build the complete SHAREHOLDER module for the FPC prototype: registration, buying more shares, share certificate, the shareholder's own view, and six reports. Mock data in the browser store, persisted to localStorage. Face value per share is Rs 100 (setting). Roles: FPC Admin and Data Entry register; Admin and Accountant approve and record payment; Compliance prints certificates; Shareholder views own data; Director and TSF view reports.
+
+A. SHAREHOLDER REGISTRATION (FPC Admin or Data Entry: Shareholders > Register)
+Step 0, search first: a search box "Search existing member by name, mobile, Aadhaar (last 4), Farmer ID or Shareholder ID". If a match is found, show the profile card and two buttons: "Buy additional shares" (flow B) and "View profile". If no match, show "Register new shareholder".
+Step 1, personal: Shareholder Name, Gender (Male, Female, Other), Category (General, OBC, SC, ST), Mobile Number (10 digits, starts 6 to 9, duplicate check), Aadhaar Number (12 digits, entered in groups of 4, stored and shown masked as XXXX XXXX 4821, duplicate check), optional link to an existing Farmer ID.
+Step 2, address and geography: Address (house, street, post office, PIN), then cascading dropdowns State, District, Block, Panchayat, Village (choosing a district filters blocks, and so on; seed Keonjhar district with blocks Keonjhar Sadar, Harichandanpur, Telkoi, Patna and 2 to 3 fictional panchayats and villages under each).
+Step 3, bank: Bank Account number (masked after entry), IFSC (auto-fills bank and branch name from a small mock list), account holder name.
+Step 4, share capital: Share Capital amount in Rs OR Number of shares (they stay in sync: shares = capital / 100; capital must be a multiple of Rs 100; minimum 1 share, show the FPC's maximum per member, e.g. 500 shares). Payment mode (Cash, UPI, Bank transfer, Cheque) and reference number, date.
+Step 5, review and submit: summary of everything, and auto-generated fields shown read-only: Unique ID number (format SH-0063, next after 62 existing), Share Certificate number (SC-0063), Folio Number (FL-0063), distinctive share numbers (e.g. 5,901 to 6,000 for 100 shares). Submit sends the registration to Admin for approval if the creator is Data Entry; Admin submits directly.
+On approval: status Active, an audit entry, a notification and SMS preview to the member, share capital total of the FPC increases, and a SHARE CERTIFICATE is generated (section C). Validate every field with clear error text. Save Draft and auto-save work on all steps.
+Prefill sample for demos (button "Fill sample"): Pramod Kumar Sahoo, Male, OBC, 98XXXX2145, Aadhaar XXXX XXXX 6037, village Rugudi (fictional), Panchayat Sanapatna (fictional), Block Harichandanpur, District Keonjhar, Odisha 758031, SBI account XXXXXX7342, IFSC SBIN0004567 (dummy), share capital Rs 5,000 = 50 shares.
+
+B. BUY ADDITIONAL SHARES (existing shareholder)
+From the search result or profile: "Buy additional shares" opens a short form: current holding (shares and capital), number of new shares or amount (kept in sync), payment mode and reference, date. Show the new total (e.g. 10 + 15 = 25 shares, Rs 2,500) before submitting. After approval: a new certificate for the new shares (SC-0064, folio unchanged, new distinctive number range) and the share history row "Additional allotment". Cap at the per-member maximum with a message. Do not create a new Unique ID.
+
+C. SHARE CERTIFICATE
+A printable certificate page (A4 landscape) with: FPC name and CIN, "Share Certificate" heading, certificate number, folio number, Unique ID, shareholder name, address, number of shares in words and numerals (e.g. Fifty (50) equity shares), face value Rs 100, total amount paid Rs 5,000, distinctive numbers from-to, date of allotment, note "One member, one vote", and two signature blocks (Chairperson Sunita Behera, CEO Bijay Kumar Mohanty) plus a QR placeholder. Buttons: Preview, Download PDF (mock), Print, Reissue duplicate (needs a reason). A "Certificates" list shows all issued certificates with search and bulk print.
+
+D. SHAREHOLDER VIEW (role Shareholder, mobile-first)
+Bottom tabs: Home, My Shares, FPC, Meetings, Profile.
+- Home: shares held, capital, member since, wallet balance if also a farmer, today's rates preview (3 items), next meeting countdown.
+- My Shares: Unique ID, Folio, certificate list with View and Download for each, share history (allotment, additional purchase, transfer), nominee. "Request additional shares" button sends a request to the FPC.
+- FPC tab: Today's FPC rates (reuse the Rate Board with Today, Yesterday, 1 week ago filters), FPC profit and loss summary for FY 2026-27 to date and FY 2025-26 (sales Rs 49,65,000; purchases Rs 41,80,000; operating expenses Rs 3,20,000; surplus before tax Rs 4,65,000; with a simple bar chart and the line "Dividend is declared by the general meeting and is not guaranteed"), dividend history, company profile, directors, key numbers (members, turnover, stock).
+- Meetings: upcoming AGM (21 Sep 2027 11:00 AM, Community Hall Green Valley, agenda list, notice PDF), RSVP and proxy request, past meetings with minutes and resolutions, voting note.
+- Profile: personal details, masked Aadhaar and bank, address and geography, request-correction button, language switcher.
+
+E. SHAREHOLDER REPORTS (Reports > Shareholder; available to Admin, Accountant, Compliance, Director; TSF sees all FPCs with an FPC filter). Each report has filters, a totals row, Export Excel, Export PDF, Print, and a chart where noted.
+1. Shareholder Register: Unique ID, Folio, name, gender, category, mobile, village, panchayat, block, district, shares, capital, certificate numbers, date admitted, status. Searchable, sortable, 62 rows.
+2. Share Capital Summary: authorised capital Rs 10,00,000; paid-up Rs 6,20,000; total shares 6,200; average holding 100 shares; capital by month raised (line chart); holding bands: 1 to 10 shares, 11 to 50, 51 to 100, over 100; top 10 shareholders.
+3. Gender-wise Shareholder Report: Male 38, Female 24, Other 0; shares and capital by gender (e.g. Male Rs 3,90,000, Female Rs 2,30,000); donut chart; women share %.
+4. Category-wise Member Report: General 14, OBC 12, SC 9, ST 27 (total 62); capital by category; stacked bar by gender within category.
+5. Geography-wise Shareholder Report: drill-down district > block > panchayat > village with counts, shares and capital (Keonjhar Sadar 31, Harichandanpur 14, Telkoi 10, Patna 7); click a row to see its members.
+6. Unique ID-wise Farmer Tracking Report: one row per Unique ID linked to the Farmer ID: shares and capital, quantity sold to FPC (kg) and value in the selected period, inputs bought, wallet balance, last transaction date, dividend and bonus received, KYC status, active or dormant. Search by Unique ID, click a row for a full tracking timeline (registration, share purchases, sales, input orders, withdrawals, dividends). Members who are shareholders but not farmers show a dash for farm columns.
+Make the seeded 62 shareholders consistent with these totals (generate realistic Odia names, mobile numbers masked, villages and amounts). Use Ravi Kumar (SH-001, 10 shares, Rs 1,000) and Sita Devi (SH-002, 25 shares, Rs 2,500) among them.
+After sending, check these quickly: register Pramod Kumar Sahoo, approve him as Admin, open his certificate, then log in as a shareholder and see it under My Shares.
+Prompt 12: FPC Admin business flows (four separate flows)
+Send this after Prompts 0 to 2. It replaces the purchase and sales parts of Prompts 2 and 4 so the four flows stay clearly separate. Inputs and outputs follow the Data Inputs and Data Outputs pages of your requirements document (Business Data, Business Outputs).
+Rebuild the AGRI BUSINESS module for the role FPC ADMIN / MANAGER (Bijay Kumar Mohanty, Green Valley FPC). There are FOUR different flows. Never mix them. Use fixed names and colours everywhere (menu, page titles, form headers, tables, report filters, chips):
+
+FARMER PRODUCE (green)
+  Flow A: PRODUCE PURCHASE = FPC buys the farmer's crop FROM the farmer. Stock IN to Produce Inventory. FPC owes the farmer, so the farmer's WALLET is credited.
+  Flow C: PRODUCE SALE = FPC sells the collected crop TO A BUYER (e.g. Shree Balaji Rice Mills, Cuttack). Stock OUT of Produce Inventory. The buyer owes the FPC (debtor).
+FARM INPUTS (blue)
+  Flow D: INPUT PURCHASE = FPC buys pesticides, fertiliser, seed and other farm items FROM A SUPPLIER. Stock IN to Input Inventory. The FPC owes the supplier (creditor).
+  Flow B: INPUT SALE = FPC sells those inputs TO THE FARMER. Stock OUT of Input Inventory. Amount is DEBITED from the farmer's wallet (or recorded as credit/advance if the wallet is short).
+
+Menu: Agri Business > Farmer Produce > Produce Purchase | Produce Sale ; Farm Inputs > Input Purchase | Input Sale ; Services ; Payments and Receipts ; Advances ; Farmer Settlement ; Dues. Every form header shows a flow banner with an arrow, e.g. "Flow A: Farmer -> FPC (you are BUYING produce, stock IN)". Every list has a flow chip and the totals never combine flows unless the screen says "All flows".
+
+COMMON FIELDS ON EVERY TRANSACTION LINE (from the requirements): Date, Commodity or Item, Quantity, UoM (kg, quintal, tonne, bag, litre, piece), Rate per UoM, Amount, GST % and GST amount, Total amount incl. GST. Header fields: voucher number (auto), party, godown, vehicle number, remarks, attachments, status (Draft, Submitted, Approved, Rejected, Cancelled). Save Draft, auto-save, Submit, Edit (only Draft or Rejected), Delete, Approve or Reject (reason), Print, Excel export. Convert quantity to the base unit live (4 quintal = 400 kg) and show it.
+GST: configurable per item (sample values: unprocessed produce 0%, fertiliser 5%, pesticide 18%, seed 0%; illustrative, to be confirmed by the FPC's accountant). Farmer sale prices for inputs are shown GST-inclusive with the tax split on the invoice. Produce purchased from farmers uses a "Bill of Supply" with 0% tax.
+
+FLOW A: PRODUCE PURCHASE (from farmer)
+Steps: (1) Select farmer by search (Farmer ID, name, mobile); show photo, village, KYC badge, wallet balance, outstanding advance. Warn if KYC not verified. (2) Add one or more lines: commodity, grade, moisture %, quantity + UoM, rate (default from today's rate board; editable within +-10%, outside this needs approval flag), godown. (3) Deductions: hamali, bag cost, advance recovery (auto-suggest recovering any outstanding advance first). (4) Review: gross amount, deductions, GST (0%), net payable. (5) Settlement choice: Credit to wallet (default) or Pay now (bank, UPI, cash) with reference.
+On Approve: farmer wallet is credited, stock IN is created, ledger entries are generated automatically (Dr Stock-Produce, Cr Farmer payable or wallet), a notification goes to the farmer, and the audit log is updated.
+Example (use for the demo): 18 Oct 2026, Farmer Sita Devi (F-002): Paddy 390 kg x Rs 25 = Rs 9,750 and Tomato 10 kg x Rs 25 = Rs 250. Total Rs 10,000. Voucher PUR-2026-0042. Wallet credited Rs 10,000.
+
+FLOW B: INPUT SALE (to farmer)
+Steps: (1) Select farmer (same card, showing wallet balance). (2) Add input lines picked from Input Inventory: item, batch number and expiry (FIFO auto-pick, expired batches blocked), quantity + UoM, selling rate, GST included, stock available shown live. (3) Payment: Wallet (default) shows "Wallet before Rs 10,000, this bill Rs 3,000, wallet after Rs 7,000". Options when the wallet is short: use part wallet + rest as credit (creates a due or advance entry), or reduce items. (4) Invoice preview with GST split, Download PDF, Print.
+On Approve: stock OUT from Input Inventory, farmer wallet debited, ledger entries generated (Dr Farmer wallet, Cr Input sales and GST payable).
+Example: 18 Oct 2026, Sita Devi: DAP 50 kg bag x 1 at Rs 1,350 + Paddy seed MTU-1010 25 kg x Rs 52 = Rs 1,300 + Vermicompost 50 kg bag x 1 at Rs 350 = Rs 3,000. Invoice INV-2026-0118. Wallet debited Rs 3,000.
+
+FARMER SETTLEMENT (the tally screen, one per farmer and a list for all)
+Shows side by side: Produce purchased (Flow A) Rs 10,000, less Inputs sold (Flow B) Rs 3,000, less advance recovered Rs 0, less withdrawals Rs 0, = Wallet balance Rs 7,000. Below it a combined statement of every transaction in date order with columns: date, voucher, flow chip, description, quantity and UoM, rate, amount, GST, debit, credit, running wallet balance. Buttons: Withdraw to bank (amount, bank, reference), Print statement, Export. A red banner appears if the wallet is negative; wallet can never be forced negative, shortfall becomes a Due.
+
+FLOW C: PRODUCE SALE (to buyer, separate from the farmer)
+Steps: (1) Select buyer (Shree Balaji Rice Mills, Cuttack; shows credit limit, outstanding, terms). (2) Add lines from Produce Inventory: commodity, grade, godown, quantity + UoM, rate, live available stock, weighted-average cost and margin preview. (3) Dispatch details: vehicle, driver, e-way bill, delivery date, delivery challan preview. (4) Review and Submit; Approve; Dispatch; Deliver; Invoice; Receive payment in parts. Status flow Draft, Submitted, Approved, Dispatched, Delivered, Part paid, Paid.
+On Dispatch: stock OUT of Produce Inventory; on invoice: buyer becomes a debtor; receipts reduce the debt.
+Example: SAL-2026-0031 on 20 Oct 2026: 1,000 kg Paddy common x Rs 30 = Rs 30,000 to Shree Balaji Rice Mills, Cuttack. Cost at Rs 25 per kg = Rs 25,000, gross margin Rs 5,000 (label: before operating expenses). Receipt Rs 20,000 on 24 Oct 2026, balance Rs 10,000 due in 15 days.
+
+FLOW D: INPUT PURCHASE (from supplier)
+Steps: supplier master (Utkal Agro Inputs Pvt Ltd, Bhubaneswar, GSTIN dummy, terms 30 days), lines with item, batch number, manufacture and expiry date, quantity + UoM, purchase rate, GST, MRP and FPC selling rate, receive into godown, supplier invoice upload. On Approve: stock IN to Input Inventory; supplier becomes a creditor; payments reduce it.
+Example: PUR-IN-2026-0009 on 10 Oct 2026: DAP 100 bags x Rs 1,250; Urea 200 bags x Rs 242; Paddy seed MTU-1010 500 kg x Rs 40; Neem pesticide 100 litre x Rs 330; Vermicompost 200 bags x Rs 280.
+
+SERVICES (Others, from requirements): Custom Hiring Centre (machine, hours or acres, rate, farmer, date), Soil Testing (sample, fee, report), Credits (short-term input credit). Each posts to the farmer's wallet or dues like Flow B.
+
+ADVANCES AND DUES
+Advance to farmer (cash or input advance): amount, date, purpose, expected recovery date; recovered automatically from the next Flow A approval; Advance Register shows given, recovered, balance. Dues screen lists money the FPC must pay (farmers, suppliers) and money it must receive (buyers, farmers who owe), with ageing and a Send reminder button.
+
+BUSINESS OUTPUTS (Reports > Business). Each: filters (date range, flow, party, commodity, status), totals row, chart where noted, drill-down to the voucher, Export Excel, PDF, Print.
+1. Purchase Register (Flow A and D, separated by a flow filter): date, voucher, party, item, quantity, UoM, rate, amount, GST, total, status.
+2. Sales Register (Flow B and C, separated by a flow filter): same columns plus margin for Flow C.
+3. Advance Register: farmer, advance date, amount, recovered, balance, ageing.
+4. Outstanding Dues Report: who owes what, split into Payable (to farmers, to suppliers) and Receivable (from buyers, from farmers), with days overdue.
+5. Debtor Report (buyers and farmers who owe) and Creditor Report (farmers with wallet balance, suppliers), with timelines per party and ageing chart.
+Seed 60 realistic vouchers across the last 6 months so every report has data, including the examples above.
+
+CHECKS
+Bank statement upload screen (CSV) that auto-matches payments and receipts to vouchers and flags unmatched lines. Alerts: advance overdue, buyer overdue over 45 days, supplier payment due, low input stock. Every approval writes ledger entries and an audit log row.
+Prompt 13: Inventory (two separate inventories) for FPC Admin and TSF
+Send this after Prompt 12. It keeps Produce Inventory (bought from farmers) apart from Input Inventory (equipment bought for farmers) and walks both scenarios from start to finish. Output names follow the Stock and Inventory Outputs in your requirements.
+Build INVENTORY MANAGEMENT for the FPC Admin / Manager (Bijay Kumar Mohanty) and a read-only monitoring version for the TSF Central Admin (Neha Sharma). Inventory is driven by the business flows from Prompt 12, so stock changes ONLY through approved vouchers, transfers and adjustments. There are TWO inventories with different data and colours; never combine their quantities or values on the same table unless a screen is titled "All inventory summary".
+
+INVENTORY 1: PRODUCE INVENTORY (green) = crops bought from farmers
+- Item fields: commodity, grade, godown, quantity in base unit (kg) plus original UoM shown, moisture %, source (farmer voucher), weighted-average cost per kg, value.
+- Stock IN: Flow A Produce Purchase approved. Stock OUT: Flow C Produce Sale dispatched, transfers out, wastage, adjustment.
+INVENTORY 2: INPUT INVENTORY (blue) = pesticides, fertiliser, seed, vermicompost, tools bought from suppliers for farmers
+- Item fields: item, category (Fertiliser, Pesticide, Seed, Bio-input, Tools), batch number, manufacture and expiry date, supplier, pack size and UoM (bag, litre, kg, piece), purchase cost, FPC selling rate (GST-inclusive), GST %, reorder level, quantity, value.
+- Stock IN: Flow D Input Purchase approved. Stock OUT: Flow B Input Sale approved, transfers out, expiry write-off, damage, adjustment.
+
+SCREENS (same for both inventories, switched by a clearly coloured tab at the top of the Inventory menu: Produce Inventory | Input Inventory | All inventory summary)
+1. Dashboard: total stock value, items below reorder level, godown capacity used (Main Godown Keonjhar 500 tonne, Pitamahal 120 tonne), ageing stock over 90 days, stock IN and OUT this week; for inputs also items expiring in 30 days.
+2. STOCK REGISTER: one row per item (and batch for inputs): opening, inward, outward, closing, unit, value. Click a row to open the STOCK LEDGER with every movement (date, voucher link, type: Purchase in, Sale out, Transfer in or out, Adjustment, Wastage, Expiry write-off, party, quantity in, quantity out, running balance, rate, value).
+3. COMMODITY-WISE INVENTORY REPORT: group by commodity or item category, with godown split and chart.
+4. STOCK MOVEMENT REPORT: date range, item, movement type; opening + inward - outward = closing check line that must tally.
+5. CURRENT STOCK POSITION: live position by godown with available, reserved (approved but not dispatched) and free quantity.
+6. STOCK VALUATION REPORT: weighted-average method, value by item and godown, total value; comparison with market rate for produce (unrealised gain) and with selling rate for inputs.
+7. Stock transfer between godowns (from, to, quantity, vehicle; In transit; receipt confirmation). Stock adjustment (physical count vs system count, variance, reason: shrinkage, moisture loss, pest, damage, counting error, expiry; photo; Admin approval). Physical stock count sheet printable.
+8. Rules: cannot sell or issue more than free stock; UoM conversion everywhere (bag 50 kg, quintal 100 kg, tonne 1,000 kg); FIFO batch picking for inputs; expired batches cannot be sold; low-stock and expiry alerts to Admin and Inventory roles; every change writes an audit log row.
+
+SCENARIO ONE (Produce Inventory; walk this end to end in the demo with a "Scenario trace" panel showing each step)
+Starting stock: Paddy common 48,500 kg, Main Godown Keonjhar.
+1. 12 Oct 2026: Procurement raises Produce Purchase PUR-2026-0001: farmer Ravi Kumar (F-001), 1,000 kg Paddy common x Rs 25 = Rs 25,000 (Flow A). Admin approves. Stock IN +1,000 kg, paddy becomes 49,500 kg. Ravi's wallet +Rs 25,000.
+2. Stock ledger shows the IN row linked to PUR-2026-0001; valuation updates: 49,500 kg at weighted average cost.
+3. 20 Oct 2026: Sales raises Produce Sale SAL-2026-0031: 1,000 kg Paddy common x Rs 30 = Rs 30,000 to Shree Balaji Rice Mills, Cuttack (Flow C). Admin approves and dispatches with vehicle OD-09-AB-4412. Stock OUT -1,000 kg, paddy returns to 48,500 kg. Buyer becomes a debtor Rs 30,000.
+4. Movement report for 12 to 20 Oct reads: opening 48,500, inward 1,000, outward 1,000, closing 48,500. Margin Rs 5,000 on that lot (before operating expenses).
+5. Try-it checks: attempt to sell 60,000 kg and see the block message "Only 48,500 kg free"; sell 5 quintal and see "500 kg" conversion.
+
+SCENARIO TWO (Input Inventory; separate trail, with its own "Scenario trace" panel)
+Starting stock: DAP 120 bags, Urea 200 bags, Paddy seed MTU-1010 300 kg, Neem pesticide 40 litre, Vermicompost 60 bags.
+1. 10 Oct 2026: Input Purchase PUR-IN-2026-0009 from Utkal Agro Inputs Pvt Ltd (Flow D): DAP 100 bags x Rs 1,250; Urea 200 bags x Rs 242; seed 500 kg x Rs 40; Neem 100 litre x Rs 330; Vermicompost 200 bags x Rs 280, with batch numbers and expiry dates. Admin approves. Stock IN: DAP 220, Urea 400, seed 800 kg, Neem 140 litre, Vermicompost 260 bags. Supplier becomes a creditor; payment recorded later.
+2. 18 Oct 2026: Input Sale INV-2026-0118 to Sita Devi (F-002, Flow B): DAP 1 bag, seed 25 kg, Vermicompost 1 bag = Rs 3,000 paid from the wallet. Stock OUT: DAP 219, seed 775 kg, Vermicompost 259 bags.
+3. Stock ledger and batch view show the batch used (FIFO). Valuation shows cost vs selling rate and margin on inputs.
+4. Alert demo: Neem pesticide batch NP-2409 expires in 28 days.
+Cross-check panel: "Produce stock does not change when inputs are sold, and input stock does not change when produce is bought" with the two trails shown side by side.
+
+TSF CENTRAL ADMIN (read-only, role TSF Central Admin)
+- Inventory > Network view: all 8 FPCs in a table with Produce stock (tonne) and value, Input stock value, low-stock count, expiring-input count, and last stock update date. Rows not updated for 7 or more days are red (Gonda Tribal Farmers FPC: 12 days).
+- Filters: state, district, FPC, commodity, item category, date. Toggle Produce | Input | Both (separate columns, never added together).
+- Consolidated reports: Commodity-wise Inventory (all FPCs), Stock Movement (all FPCs), Current Stock Position, Stock Valuation, with Export Excel and PDF.
+- Drill-down into Green Valley FPC shows the same registers and ledgers in read-only mode with the banner "Viewing Green Valley FPC as TSF", and the Scenario traces so TSF can follow PUR-2026-0001 to SAL-2026-0031 and PUR-IN-2026-0009 to INV-2026-0118.
+- Alerts: send reminder to an FPC that has not updated stock; mark follow-up.
+Prompt 14: Farmer registration with commodity baseline
+Send this after Prompt 13. It replaces the Register Farmer wizard in Prompts 2 and 5. It covers every field named under Commodity Baseline Data in your requirements: Farmer Name, Mobile Number, Address, Gender, Category, Landholding, Crop and Livestock Details, Other allied activities, Agri Forestry, NTFP, Dairy.
+Build the complete FARMER REGISTRATION flow with COMMODITY BASELINE capture. Used by FPC Admin, Data Entry Operator and Field Staff (Field Staff gets a mobile layout and offline save; Data Entry gets the same wizard on desktop). Admin approves. Mock data, saved to the store and localStorage.
+
+ENTRY POINTS
+Farmers > Register Farmer (desktop), Field Staff Home > Register Farmer (mobile, offline-capable), Bulk upload (Excel template with the same columns). Start every registration with SEARCH: "Search by mobile, Aadhaar (last 4), name". If found in this FPC, open the existing profile instead. If found in another FPC, show the blocking or linking dialog from Prompt 2 (TSF rule). Otherwise continue.
+
+WIZARD (progress bar with step names, Save Draft and auto-save every 10 seconds, Back and Next, validation per step, review at the end)
+Step 1, FARMER DETAILS: Farmer Name, father or husband name, Gender (Male, Female, Other), Date of birth (age shown), Mobile Number (10 digits, 6 to 9 start, duplicate check, optional OTP verification demo), alternate mobile, Category (General, OBC, SC, ST), Farmer type (Small under 2 ha, Marginal under 1 ha, Medium, Large; auto-suggested from landholding), photo (camera capture).
+Step 2, ADDRESS: House or street, Village, Panchayat, Block, District, State, PIN, nearest godown or collection point. Cascading dropdowns State > District > Block > Panchayat > Village (seed Keonjhar with 4 blocks and fictional panchayats and villages). GPS button for home location.
+Step 3, LANDHOLDING: table of plots (add or remove rows): Khata number, Plot or survey number, Area with unit (acre, hectare, guntha, cent; total auto-converted to acres and hectares), Ownership (Owned, Leased, Sharecropped, Forest-right patta), Irrigation (Rain-fed, Canal, Borewell, Pond, River lift), Soil type (Red, Laterite, Alluvial, Black), Land photo. Totals: total area, irrigated area, rain-fed area.
+Step 4, CROP DETAILS: per season (Kharif, Rabi, Summer) rows: Crop (paddy, maize, pulses, vegetables, oilseeds, millet and others), Variety, Area sown (cannot exceed total land), Sowing month, Harvest month, Expected yield (quintal per acre), Expected marketable surplus (kg), Where sold now (Mandi, Trader, Village, FPC), Current price realised (Rs per kg).
+Step 5, LIVESTOCK DETAILS: counts for Cattle, Buffalo, Goat, Sheep, Pig, Poultry (backyard), Duck, other; for each: number of animals, purpose (milk, meat, draught, eggs), breed (optional), vaccinated yes or no.
+Step 6, OTHER ALLIED ACTIVITIES: checkboxes with detail rows: Fishery, Beekeeping, Sericulture, Mushroom, Nursery, Vermicompost, Food processing or value addition, Agri services (tractor, thresher), Handicraft; for each selected: scale (units, area), annual income estimate (Rs), months active.
+Step 7, AGRI FORESTRY: table: Tree species (Mango, Cashew, Teak, Sal, Bamboo, Eucalyptus, Jackfruit, Moringa and others), Number of trees, Area under trees (acre), Age (years), Purpose (fruit, timber, fodder, shade), Annual income (Rs).
+Step 8, NTFP (non-timber forest produce): table: Product (Mahua flower, Sal seed, Tendu or Kendu leaf, Honey, Lac, Harida, Amla, Mushroom wild, Bamboo shoot, Siali leaf), Months collected, Quantity per year (kg, with UoM), Selling to (LAMPS, trader, FPC, market), Rate realised (Rs per kg), Annual income (Rs), Forest rights document available (yes or no).
+Step 9, DAIRY BASELINE: Milch animals (cow, buffalo) count, in milk now, Milk production litres per day (average, winter and summer), Milk sold per day, Sold to (Cooperative society, Private dairy, Local village), Rate Rs per litre, Dairy cooperative member yes or no, Feed and fodder source, Annual dairy income (Rs).
+Step 10, BANK AND KYC: Aadhaar number (12 digits, shown masked XXXX XXXX 4821), optional voter ID, ration card, Bank name, Account number (masked, confirm field), IFSC (auto-fills bank and branch), account holder name, passbook photo, ID photo uploads. KYC status flow: Submitted, Under review, Verified, Rejected (reason). Optional: nominee, mobile app consent.
+Step 11, REVIEW AND SUBMIT: one-page summary with edit links per step, completeness percentage (e.g. 92% baseline complete), highlighted missing fields, auto-generated Farmer ID (next after F-100, e.g. F-101), declaration checkbox, Submit. Save Draft stays available. Offline: submit stores to the sync queue.
+
+AFTER SUBMIT
+Status Submitted > Admin Approvals inbox > Approve or Reject (with reason, visible to the submitter). On approval: Farmer ID active, wallet created at Rs 0, member invite SMS preview with portal login link, notification, audit log. Admin can also "Approve and register as shareholder", which jumps to the Shareholder registration with fields prefilled. Reject returns to Draft with comments.
+
+FARMER PROFILE (360) tabs: Overview, Land, Crops and Livestock, Allied, Agroforestry and NTFP, Dairy, KYC, Business (purchases, input purchases), Wallet and Ledger, Shareholder link, Audit trail. Edit with a diff summary, deactivate, export profile PDF. A "Baseline update" button lets Field Staff refresh a section each season with the previous values kept in history.
+
+COMMODITY BASELINE OUTPUTS (Reports > Commodity Baseline; also available to TSF across FPCs): commodity-specific survey reports with filters (season, village, gender, category, farmer type): Crop-wise survey (area, farmers, expected production, surplus), Livestock survey, Allied activities survey, Agroforestry survey, NTFP survey (product-wise quantity and income), Dairy survey (litres per day, income), Landholding summary, Baseline completeness report (farmers with missing sections). Each has totals, a chart, drill-down to the farmer, Export Excel and PDF. Use these totals for the 100 seeded farmers: total land 214 acres; paddy 118 acres, maize 36, pulses 22, vegetables 18, millet 20; 41 farmers with livestock; 27 with dairy (average 4.2 litres per day); 33 with NTFP income; 12 with agroforestry.
+
+SAMPLE FARMER FOR "Fill sample" BUTTON
+Kamala Majhi (fictional), Female, ST, DOB 12 Mar 1986, mobile 97XXXX3381, village Rugudi (fictional), Panchayat Sanapatna (fictional), Block Harichandanpur, District Keonjhar, Odisha 758031. Land: Khata 118 / Plot 24, 1.5 acre owned, rain-fed red soil; Khata 118 / Plot 31, 0.8 acre leased, borewell. Crops: Kharif paddy (MTU-1010) 1.6 acre, expected 18 quintal per acre; Rabi vegetables (brinjal, tomato) 0.5 acre. Livestock: 2 cows, 6 goats, 12 backyard poultry. Allied: mushroom (20 beds, Rs 18,000 per year). Agroforestry: 25 mango trees, 40 cashew trees. NTFP: Mahua flower 60 kg per year at Rs 35 per kg, Sal seed 40 kg at Rs 18 per kg. Dairy: 2 cows, 1 in milk, 3 litres per day to the village society at Rs 42 per litre. Bank: SBI account XXXXXX5521, IFSC SBIN0004567 (dummy). Aadhaar XXXX XXXX 7719.
+
+RULES: required fields marked; mobile and Aadhaar unique per FPC (and checked across FPCs); crop area cannot exceed land; mobile screens use large inputs, one section per screen, and works offline; every save and approval writes an audit log row; Indian date and number formats.
+Send order for the latest additions: Prompt 10, Prompt 11, Prompt 12, Prompt 13, Prompt 14. If a builder cuts a prompt short, send it in halves at a step boundary (for Prompt 14, Steps 1 to 6 first, then 7 to 11).

@@ -1,0 +1,58 @@
+FIX THE SIDEBAR NAVIGATION across the whole app. Do not rebuild any page. Only restructure navigation, routes, breadcrumbs and active states.
+
+PROBLEM
+The left sidebar is a long flat list. Sub-features such as "Register farmer", "Deleted farmers" and "Multi-FPC links" appear at the same level as main modules such as "Farmers". The labels also have mixed casing and several items share the same icon.
+
+TARGET STRUCTURE
+1. Two levels only: MODULE (parent) > SUB-FEATURE (child). Parents are either a single link (no children) or an expandable group. Never three levels in the sidebar; use small non-clickable caption labels inside a group when a group needs sub-headings.
+2. A sub-feature is a page of the module (list, register, deleted, reports). An action on a single record (Edit, Delete, Approve) is NOT a menu item; it stays a button inside the page.
+3. Maximum 10 top-level items per role. Use Title Case for every label ("Register Farmer", not "Register farmer"). Every parent has its own distinct icon (lucide-react); children have no icons, only a small bullet or indent line.
+
+BEHAVIOUR
+- Accordion groups: click a parent to expand or collapse with a chevron and smooth animation. Only one group open at a time on desktop (setting to allow multiple). The group that contains the current route opens automatically on load and on navigation.
+- Active states: the active child is highlighted (green text, left bar, light green background); its parent shows a subtle active style (bold with a dot) even when collapsed. A parent with children is not itself a page unless it is marked as one.
+- Badges: a count badge on a child (e.g. Approvals 7) rolls up to its parent when the group is collapsed.
+- Collapsible sidebar: a toggle shrinks it to icons only (72 px). In icon mode, hovering or clicking a parent opens a flyout panel with its children and tooltips. Remember the choice and the open group in localStorage (with try/catch).
+- Mobile and tablet: sidebar becomes a slide-in drawer with the same groups; Farmer and Shareholder keep the bottom tab bar, with a "More" sheet that shows the grouped menu.
+- Search: a "Search menu" box at the top and Ctrl+K command palette that lists every menu item with its parent ("Farmer Management > Register Farmer") and jumps to it. Filter respects permissions.
+- Breadcrumbs on every page: Module > Sub-feature (> record name), clickable. Page header shows the module name as a small caption above the page title.
+- Keyboard and accessibility: arrow keys move through items, Enter toggles groups, aria-expanded and aria-current set correctly, focus ring visible.
+- Scroll: only the middle of the sidebar scrolls; logo and FPC name stay on top, user card and sync status stay at the bottom.
+
+IMPLEMENTATION
+Create one file navConfig.ts holding the whole tree. Each node: id, label, icon, route, permission (module and action, checked with can()), roles, badgeKey, children, caption. Build the sidebar, mobile drawer, command palette and breadcrumbs from this one config. Hide any child the role cannot access, and hide a parent when all its children are hidden. Routes are nested and consistent (for example /farmers, /farmers/new, /farmers/deleted, /farmers/multi-fpc, /farmers/:id). Old routes redirect to the new ones so no link breaks.
+
+FPC ADMIN / MANAGER MENU (build exactly this)
+- Dashboard: Overview, Approvals (badge 7), Analytics, Setup Checklist
+- FPC Profile: Company Details, Licences and Documents, Directors and Staff, Bank Accounts, Change History
+- Farmer Management: All Farmers, Register Farmer, Baseline and Surveys, Multi-FPC Links, Deleted Farmers
+- Shareholder Management: All Shareholders, Register Shareholder, Share Certificates, Dividend and Patronage, Share Capital Reports
+- Agri Business: caption "Farmer Produce": Produce Purchase, Produce Sale; caption "Farm Inputs": Input Purchase, Input Sale; caption "Accounts": Farmer Settlement, Advances and Dues, Buyers and Suppliers, Services
+- Inventory: Produce Inventory, Input Inventory, Stock Register, Stock Movement, Transfers and Adjustments, Godowns and Units
+- Finance: Farmer Ledger, Buyer Ledger, Supplier Ledger, Cash and Bank, Expenses, Profit and Loss
+- Compliance: Filing Tracker, Meetings, Document Vault
+- Reports and Gallery: Report Library, Gallery
+- Administration: Users and Roles, Messages, Audit Trail, Sync Centre, Support, Settings
+
+OTHER ROLES (same rules, own trees from the permission map)
+- TSF Central Admin: Dashboard, Monitoring (Checklist Matrix, FPC Journey, Pending Items), FPC Management (All FPCs, Onboard New FPC, Pending Approvals), Network Data (Farmers, Shareholders, Business, Inventory, Finance, Compliance), Analytics and MIS (Analytics, MIS Reports, Report Builder), Gallery, Administration (Users and Roles, Announcements, Audit Trail, Support, Settings).
+- Accountant: Dashboard, Finance (Ledgers, Payments, Receipts, Expenses, Profit and Loss), Share Capital (Register, Dividend Run), Reports.
+- Procurement: Dashboard, Produce Purchase (New Purchase, All Purchases), Input Purchase, Reports.
+- Sales: Dashboard, Produce Sale, Input Sale, Buyers, Reports.
+- Inventory Manager: Dashboard, Produce Inventory, Input Inventory, Stock Movement, Adjustments and Transfers, Units and Godowns.
+- Data Entry: My Drafts, Data Entry (Farmers, Shareholders, Purchases, Sales), Bulk Upload, Sync Centre.
+- Field Staff (mobile): Home, Register Farmer, Baseline Survey, Purchase Draft, Gallery, Sync.
+- Compliance Officer: Dashboard, Compliance (Filing Tracker, Meetings, Document Vault), Gallery, Reports.
+- Director / Auditor (read-only): Overview, Business, Finance, Compliance, Audit Trail, Reports.
+
+SMALL DATA FIXES VISIBLE IN THE SCREENSHOT
+The Overview card shows Farmers 168 with the note "100 active in Green Valley", and Shareholders 109. For the Green Valley Admin, show Farmers 100 and Shareholders 62 as the main numbers (own FPC only); network totals belong only in the TSF app.
+
+ACCEPTANCE CHECKS (verify and list the result at the end)
+1. For FPC Admin, the sidebar at first load shows 10 top-level items, all groups collapsed except the group of the current page.
+2. Open /farmers/new: Farmer Management is expanded, Register Farmer is highlighted, breadcrumb reads Farmer Management > Register Farmer.
+3. Deleted Farmers, Multi-FPC Links and Register Farmer are children of Farmer Management and no longer top-level items.
+4. Collapse the sidebar: only icons show, and hovering Farmer Management opens a flyout with its 5 children.
+5. Log in as each of the 12 roles: no empty groups, no dead links, no item the role cannot access.
+6. Ctrl+K searching "deleted" jumps to Deleted Farmers.
+7. Resize to 390 px wide: the drawer works and the bottom tabs work for Farmer and Shareholder.

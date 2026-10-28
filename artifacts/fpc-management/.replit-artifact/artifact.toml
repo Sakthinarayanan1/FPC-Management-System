@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "FPC Management System"
+description = "A browser-based demonstration system for Farmer Producer Companies, with staff operations, a member portal, and TSF oversight across 12 demo roles."
+version = "1.0.0"
+id = "artifacts/fpc-management"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 25793
+
+[services.development]
+run = "pnpm --filter @workspace/fpc-management run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/fpc-management", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/fpc-management/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "25793"
+BASE_PATH = "/"
