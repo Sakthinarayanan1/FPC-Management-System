@@ -43,7 +43,7 @@
 .fpc-command-trigger:hover { background: #234b32; }
 .fpc-command-trigger span { flex: 1; }
 .fpc-command-trigger kbd { padding: 3px 5px; border: 1px solid #46664d; border-radius: 4px; }
-.fpc-nav-middle { min-height: 0; flex: 1; overflow-x: visible; overflow-y: auto; padding: 4px 1px 9px; scrollbar-color: #55745c transparent; scrollbar-width: thin; }
+.fpc-nav-middle { min-height: 0; flex: 1; overflow-x: hidden; overflow-y: auto; padding: 4px 1px 24px; scrollbar-color: #55745c transparent; scrollbar-width: thin; }
 .fpc-nav-item { position: relative; width: 100%; min-height: 38px; display: flex; align-items: center; gap: 11px; padding: 0 10px; border: 0; border-radius: 8px; color: #c6d6c9; background: transparent; text-align: left; text-decoration: none; font: inherit; font-size: 11.5px; font-weight: 550; cursor: pointer; transition: background 150ms ease, color 150ms ease; }
 .fpc-nav-item:hover { color: #fff; background: #244e34; }
 .fpc-nav-item:focus-visible, .fpc-sidebar button:focus-visible, .fpc-command button:focus-visible, .fpc-more-sheet button:focus-visible, .fpc-navigation-context button:focus-visible {
@@ -68,7 +68,24 @@
 .fpc-nav-item.is-child.is-active { color: #eff8ed; background: #2a5738; box-shadow: inset 2px 0 var(--nav-gold); font-weight: 700; }
 .fpc-child-marker { width: 4px; height: 4px; flex: none; border-radius: 50%; background: #73947a; }
 .fpc-nav-item.is-child.is-active .fpc-child-marker { background: var(--nav-gold); }
-.fpc-nav-caption { display: block; padding: 8px 8px 3px; color: #92aa96; font-size: 8px; font-weight: 700; letter-spacing: .95px; line-height: 1.3; text-transform: uppercase; }
+.fpc-nav-caption {
+  display: block;
+  padding: 6px 8px 3px 9px;
+  margin-top: 4px;
+  margin-bottom: 2px;
+  color: #8fa894;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: .95px;
+  line-height: 1.3;
+  text-transform: uppercase;
+  user-select: none;
+}
+.fpc-nav-caption.is-subsequent {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgb(255 255 255 / 8%);
+}
 .fpc-nav-badge { flex: none; min-width: 19px; height: 18px; display: inline-grid; place-items: center; padding: 0 5px; border-radius: 10px; color: #273b2c; background: var(--nav-gold); font-size: 9px; font-weight: 750; font-variant-numeric: tabular-nums; }
 .fpc-nav-badge.is-rollup { background: #f7d783; }
 .fpc-nav-empty { padding: 18px 8px; color: #a9bcac; font-size: 11px; line-height: 1.5; }

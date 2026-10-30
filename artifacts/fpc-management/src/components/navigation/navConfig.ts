@@ -92,6 +92,11 @@ const fpcAdminTree: NavigationNode[] = [
     leaf("directors-staff", "Directors and Staff", "/fpc-profile/directors-staff", "User management"),
     leaf("bank-accounts", "Bank Accounts", "/fpc-profile/bank-accounts", "Bank accounts"),
   ]),
+  group("fpc-management", "FPC Management", Building2, [
+    leaf("all-fpcs", "All FPCs", "/fpc-management", "FPC directory"),
+    leaf("onboard-fpc", "Onboard New FPC", "/fpc-management/onboard", "FPC onboarding"),
+    leaf("fpc-pending-approvals", "Pending Approvals", "/fpc-management/approvals", "FPC pending approvals"),
+  ]),
   group("farmer-management", "Farmer Management", Users, [
     leaf("farmers-all", "All Farmers", "/farmers", "Farmers", { detailRoute: "/farmers/:id" }),
     leaf("farmers-new", "Register Farmer", "/farmers/new", "Register farmer"),
@@ -100,7 +105,7 @@ const fpcAdminTree: NavigationNode[] = [
     leaf("farmers-deleted", "Deleted Farmers", "/farmers/deleted", "Deleted farmers"),
   ]),
   group("shareholder-management", "Shareholder Management", Handshake, [
-    leaf("shareholders-all", "All Shareholders", "/shareholders", "Shareholders"),
+    leaf("shareholders-all", "All Shareholders", "/shareholders", "Shareholders", { detailRoute: "/shareholders/:id" }),
     leaf("shareholders-new", "Register Shareholder", "/shareholders/new", "Register shareholder"),
     leaf("share-certificates", "Share Certificates", "/shareholders/certificates", "Certificates"),
     leaf("dividend-patronage", "Dividend and Patronage", "/shareholders/dividend", "Dividends"),
@@ -111,7 +116,7 @@ const fpcAdminTree: NavigationNode[] = [
     leaf("produce-sale", "Produce Sale", "/agri-business/produce-sale", "Produce Sale", { caption: "Farmer Produce" }),
     leaf("input-purchase", "Input Purchase", "/agri-business/input-purchase", "Input Purchase", { caption: "Farm Inputs" }),
     leaf("input-sale", "Input Sale", "/agri-business/input-sale", "Input Sale", { caption: "Farm Inputs" }),
-    leaf("farmer-settlement", "Farmer Settlement", "/agri-business/farmer-settlement", "Farmer Settlement", { caption: "Accounts" }),
+    leaf("farmer-settlement", "Farmer Settlement", "/agri-business/farmer-settlement", "Farmer Settlement", { caption: "Accounts", detailRoute: "/agri-business/farmer-settlement/:id" }),
     leaf("advances-dues", "Advances and Dues", "/agri-business/advances-dues", "Advances & Dues", { caption: "Accounts" }),
     leaf("buyers-suppliers", "Buyers and Suppliers", "/agri-business/buyers-suppliers", "Buyer master", { caption: "Accounts" }),
     leaf("supplier-master", "Supplier Master", "/agri-business/suppliers", "Supplier master", { caption: "Accounts" }),
@@ -366,22 +371,25 @@ function matchRoute(route: string, path: string): boolean {
 
 export function getNavigationBreadcrumbs(role: Role, currentPath: string, recordName?: string): NavigationCrumb[] {
   const normalized = normalizePath(currentPath);
-  const path = normalized === "/fpc-profile/change-history" ? "/reports/change-history" : normalized;
+  let path = normalized === "/fpc-profile/change-history" ? "/reports/change-history" : normalized;
+  const isFarmerEdit = path.startsWith("/farmers/") && path.endsWith("/edit");
+  const lookupPath = isFarmerEdit ? path.replace(/\/edit$/, "") : path;
   for (const parent of getRoleNavigation(role)) {
     const children = parent.children ?? [];
-    const child = children.find((node) => node.route && !node.route.includes(":") && matchRoute(node.route, path))
-      ?? children.find((node) => node.route && matchRoute(node.route, path));
-    if (child?.route) {
+    const child = children.find((node) => node.route && !node.route.includes(":") && matchRoute(node.route, lookupPath))
+      ?? children.find((node) => node.route && matchRoute(node.route, lookupPath));
+    if (child?.route && !isFarmerEdit && !matchRoute(child.detailRoute || "", lookupPath)) {
       return [
         { id: parent.id, label: parent.label, route: parent.route ?? parent.children?.[0]?.route ?? child.route, current: false },
         { id: child.id, label: child.label, route: child.route, current: true },
       ];
     }
-    const detail = children.find((node) => node.detailRoute && matchRoute(node.detailRoute, path));
+    const detail = children.find((node) => node.detailRoute && matchRoute(node.detailRoute, lookupPath));
     if (detail?.detailRoute && detail.route) {
+      const fallbackLabel = detail.route === "/shareholders" ? "Shareholder Details" : detail.route === "/agri-business/farmer-settlement" ? "Farmer Financial Overview" : "Farmer Details";
       return [
         { id: parent.id, label: parent.label, route: parent.route ?? parent.children?.[0]?.route ?? detail.route, current: false },
-        { id: detail.id, label: recordName || "Farmer Details", route: detail.route, current: true },
+        { id: detail.id, label: isFarmerEdit ? (recordName ? `Edit ${recordName}` : "Edit Farmer") : (recordName || fallbackLabel), route: detail.route, current: true },
       ];
     }
     if (parent.route && matchRoute(parent.route, path)) {

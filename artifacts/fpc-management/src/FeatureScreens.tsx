@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { ArrowDownLeft, ArrowUpRight, CalendarDays, ChevronRight, CircleDollarSign, FileText, Leaf, Plus, Search, ShoppingBag, Sprout, X } from "lucide-react";
+import { ArrowDownLeft, ArrowUpRight, CalendarDays, ChevronRight, CircleDollarSign, Download, FileText, Leaf, Plus, Printer, Search, ShoppingBag, Sprout, X } from "lucide-react";
 import { money, convert, type RecordRow, type State } from "@/lib/store";
 import { roleUsers } from "@/lib/config";
+import ProducePurchaseReceipt from "./ProducePurchaseReceipt";
 
 type Props={state:State;setState:(updater:State|((s:State)=>State))=>void;role:string;screen:string;setToast:(s:string)=>void;go:(s:string)=>void};
 const todayLabel="26 Oct 2026";
@@ -20,6 +21,7 @@ export default function FeatureScreens({state,setState,role,screen,setToast,go}:
   const [cart,setCart]=useState<Record<string,number>>({}); const [reg,setReg]=useState<ShareholderForm>({name:"",gender:"Male",category:"OBC",mobile:"",aadhaar:"",village:"",block:"Harichandanpur",shares:"50",farmerId:"",payment:"Cash"});
  const [memberQuery,setMemberQuery]=useState(""); const [selectedRate,setSelectedRate]=useState<RecordRow|null>(null); const [rateDate,setRateDate]=useState("today"); const [rateUnit,setRateUnit]=useState("kg"); const [tx,setTx]=useState<RecordRow|null>(null);
  const [historyType,setHistoryType]=useState("All"); const [activeReport,setActiveReport]=useState("Shareholder Register");
+ const [farmerReceiptToShow,setFarmerReceiptToShow]=useState<RecordRow|null>(null);
  const farmerId=state.memberId||"F-001", farmer=state.records.farmers.find(x=>x.id===farmerId), owner=farmer?.name||"Ravi Kumar";
  const balance=Number(state.walletBalances[farmerId]??0);
  const mine=state.walletTransactions.filter(x=>x.farmerId===farmerId).sort((a,b)=>String(b.id).localeCompare(String(a.id)));
@@ -115,7 +117,85 @@ export default function FeatureScreens({state,setState,role,screen,setToast,go}:
 
  if(["My sales","Sales entries","Purchase entries","Input supply","Procurement dashboard"].includes(screen)){
   const rows=role==="Farmer"?state.saleRequests.filter(x=>x.farmerId===farmerId):state.saleRequests;
-   return <section className="fx-panel"><div className="fx-panel-title"><div><span className="fx-kicker">PRODUCE FLOW</span><h2>Sale requests</h2><small>Request → weighed → approved → wallet credit</small></div>{role==="Farmer"&&<Button kind="primary" onClick={()=>go("Sell produce")}><Plus size={15}/> Sell produce</Button>}</div><div className="fx-request-list">{rows.map(row=><article className="fx-request" key={row.id}><div className="fx-request-head"><span><b>{row.id}</b><small>{row.farmer} · {row.date} · {row.collectionPoint}</small></span><strong>{money(row.total)}</strong></div><div className="fx-steps">{["Requested","Weighed","Approved","Credited"].map((step,i)=><span className={["Requested","Weighed","Approved","Credited"].indexOf(row.status||"Requested")>=i?"done":""} key={step}><i/>{step}</span>)}</div><div className="fx-items">{row.items?.map((it:RecordRow)=><span key={it.commodity}>{it.commodity} · {it.quantity} {it.unit} × {money(it.rate)}</span>)}</div>{role!=="Farmer"&&row.status!=="Credited"&&<Button kind="primary" onClick={()=>confirmSale(row)}>{row.status==="Requested"?"Confirm weight":row.status==="Weighed"?"Approve sale":"Credit wallet"}</Button>}</article>)}</div></section>
+  const farmerReceipts=(state.records?.businessTransactions||[]).filter(x=>(x.flow==="Produce Purchase"||x.flowName==="Produce Purchase")&&x.status==="Approved"&&(x.farmerId===farmerId||(x.party&&(x.party.includes(farmerId)||(farmer?.name&&x.party.includes(farmer.name))))));
+   return <>
+     <section className="fx-panel">
+       <div className="fx-panel-title">
+         <div><span className="fx-kicker">PRODUCE FLOW</span><h2>Sale requests</h2><small>Request → weighed → approved → wallet credit</small></div>
+         {role==="Farmer"&&<Button kind="primary" onClick={()=>go("Sell produce")}><Plus size={15}/> Sell produce</Button>}
+       </div>
+       <div className="fx-request-list">
+         {rows.map(row=><article className="fx-request" key={row.id}>
+           <div className="fx-request-head"><span><b>{row.id}</b><small>{row.farmer} · {row.date} · {row.collectionPoint}</small></span><strong>{money(row.total)}</strong></div>
+           <div className="fx-steps">{["Requested","Weighed","Approved","Credited"].map((step,i)=><span className={["Requested","Weighed","Approved","Credited"].indexOf(row.status||"Requested")>=i?"done":""} key={step}><i/>{step}</span>)}</div>
+           <div className="fx-items">{row.items?.map((it:RecordRow)=><span key={it.commodity}>{it.commodity} · {it.quantity} {it.unit} × {money(it.rate)}</span>)}</div>
+           {role!=="Farmer"&&row.status!=="Credited"&&<Button kind="primary" onClick={()=>confirmSale(row)}>{row.status==="Requested"?"Confirm weight":row.status==="Weighed"?"Approve sale":"Credit wallet"}</Button>}
+         </article>)}
+         {!rows.length&&<p style={{padding:"14px",color:"#778b7b",fontSize:12}}>No sale requests submitted yet.</p>}
+       </div>
+     </section>
+
+     <section className="fx-panel" style={{marginTop:18}}>
+       <div className="fx-panel-title">
+         <div>
+           <span className="fx-kicker">OFFICIAL PROCUREMENT</span>
+           <h2>Produce Purchase Receipts</h2>
+           <small>Approved purchase receipts, weighment slips &amp; settlement advice</small>
+         </div>
+         <span style={{fontSize:11,fontWeight:700,background:"#edf5ee",color:"#286442",padding:"4px 10px",borderRadius:20}}>
+           {farmerReceipts.length} Available
+         </span>
+       </div>
+       <div className="fx-request-list">
+         {farmerReceipts.map(rcp=>{
+           const rcpNum=rcp.receiptNumber||(rcp.id?rcp.id.replace("PUR-","PUR-RCP-"):"PUR-RCP-2026-0001");
+           const pStatus=rcp.paymentStatus||"Pending Settlement";
+           return (
+             <article className="fx-request" key={rcp.id} style={{borderLeft:"4px solid #286442",padding:"14px 16px"}}>
+               <div className="fx-request-head" style={{marginBottom:8}}>
+                 <div>
+                   <span style={{fontFamily:"monospace",fontWeight:800,fontSize:13,color:"#1a502a",display:"block"}}>
+                     {rcpNum}
+                   </span>
+                   <small style={{color:"#687c6f"}}>Voucher: {rcp.voucher||rcp.id} · {rcp.date} · {rcp.godown||"Main Godown Keonjhar"}</small>
+                 </div>
+                 <strong style={{fontSize:15,color:"#185e2b"}}>{money(Number(rcp.amount||0))}</strong>
+               </div>
+               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:8,fontSize:11,marginTop:6,paddingTop:8,borderTop:"1px solid #edf2ed"}}>
+                 <div>
+                   <strong>{rcp.commodity||rcp.item||"Paddy"}</strong>: {Number(rcp.quantity||0).toLocaleString()} {rcp.unit||"kg"} @ {money(Number(rcp.rate||0))}/{rcp.unit||"kg"}
+                   <span style={{marginLeft:8,padding:"2px 7px",borderRadius:4,fontSize:9.5,fontWeight:700,background:pStatus==="Settled"?"#e4f5e7":"#fff5e6",color:pStatus==="Settled"?"#1e6833":"#945c11"}}>
+                     {pStatus}
+                   </span>
+                 </div>
+                 <div style={{display:"flex",gap:6}}>
+                   <button
+                     type="button"
+                     className="fx-btn fx-outline"
+                     style={{padding:"5px 10px",fontSize:11,display:"inline-flex",alignItems:"center",gap:4}}
+                     onClick={()=>setFarmerReceiptToShow(rcp)}
+                   >
+                     <FileText size={12}/> View Receipt
+                   </button>
+                   <button
+                     type="button"
+                     className="fx-btn fx-primary"
+                     style={{padding:"5px 10px",fontSize:11,display:"inline-flex",alignItems:"center",gap:4}}
+                     onClick={()=>{setFarmerReceiptToShow(rcp);setTimeout(()=>window.print(),200);}}
+                   >
+                     <Printer size={12}/> Print / PDF
+                   </button>
+                 </div>
+               </div>
+             </article>
+           );
+         })}
+         {!farmerReceipts.length&&<p style={{padding:"14px",color:"#778b7b",fontSize:12}}>No approved produce purchase receipts for this account yet. Receipts appear as soon as procurement is approved.</p>}
+       </div>
+     </section>
+
+     {farmerReceiptToShow&&<ProducePurchaseReceipt receipt={farmerReceiptToShow} farmer={farmer} onClose={()=>setFarmerReceiptToShow(null)}/>}
+   </>;
  }
  if(["Register shareholder","Shareholders","Shareholder register","Certificates"].includes(screen))return <ShareholderAdmin state={state} setState={setState} role={role} screen={screen} reg={reg} setReg={setReg} query={memberQuery} setQuery={setMemberQuery} toast={setToast}/>;
  if(["My shares","My shareholding","Dividend & benefits","FPC","Meetings","Profile","Company information"].includes(screen))return <ShareholderPortal state={state} screen={screen} go={go} setToast={setToast}/>;

@@ -7,6 +7,11 @@ import { convert, money, type CompanyBankAccount, type DirectorRecord, type Lice
 import FeatureScreens from "./FeatureScreens";
 import EnhancedModules from "./EnhancedModules";
 import AdminModules, { SetupDashboardCard } from "./AdminModules";
+import FarmerDetails from "./FarmerDetails";
+import ShareholderDetails from "./ShareholderDetails";
+import CompanyProfileView from "./CompanyProfileView";
+import FarmerFinancialOverview from "./FarmerFinancialOverview";
+import FpcManagement from "./FpcManagement";
 import "./index.css";
 
 const slug=(s:string)=>s.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"");
@@ -18,7 +23,7 @@ const matchesRoute=(route:string|undefined,path:string)=>{
 };
 const flattenedNavigation=(nodes:readonly NavigationNode[]):NavigationNode[]=>nodes.flatMap(node=>[node,...(node.children?flattenedNavigation(node.children):[])]);
 const screenAliases:Record<string,string>={
- "Onboard New FPC":"FPC onboarding","Pending Approvals":"FPC pending approvals","MIS Reports":"Consolidated MIS",
+ "All FPCs":"FPC directory","Onboard New FPC":"FPC onboarding","Pending Approvals":"FPC pending approvals","FPC Management":"FPC directory","FPC Directory":"FPC directory","FPC Onboarding":"FPC onboarding","MIS Reports":"Consolidated MIS",
   "Input Inventory":"Inventory","Cash Book":"Cash book","Bank Book":"Bank book","Receipts and Payments":"Receipts and payments","Expense Register":"Expense register","Income and Expenditure":"Income & expenditure","Statutory Calendar":"Statutory calendar","Unit Converter":"Unit converter","Commodity and Unit Master":"Commodity & unit master","Supplier Master":"Supplier master",
  "All Farmers":"Farmers","Register Farmer":"Register farmer","Baseline and Surveys":"Baseline","Multi-FPC Links":"Multi-FPC links","Deleted Farmers":"Deleted farmers",
  "All Shareholders":"Shareholders","Register Shareholder":"Register shareholder","Share Certificates":"Certificates","Dividend and Patronage":"Dividends","Share Capital Reports":"Shareholder reports",
@@ -38,7 +43,10 @@ const screenForNode=(role:Role,node:NavigationNode|undefined)=>{
  return navByRole[role]?.find(label=>slug(label)===slug(preferred))||preferred;
 };
 const activeNavigationNode=(role:Role,path:string)=>{
- const resolvedPath=normalizePath(path)==="/fpc-profile/change-history"?"/reports/change-history":path;
+ let resolvedPath=normalizePath(path)==="/fpc-profile/change-history"?"/reports/change-history":path;
+ if(resolvedPath.startsWith("/farmers/") && resolvedPath.endsWith("/edit")){
+  resolvedPath=resolvedPath.replace(/\/edit$/,"");
+ }
  const nodes=flattenedNavigation(getRoleNavigation(role));
  return nodes.filter(node=>node.route&&!node.route.includes(":")&&matchesRoute(node.route,resolvedPath))[0]
    ||nodes.find(node=>node.route&&matchesRoute(node.route,resolvedPath))
@@ -50,7 +58,7 @@ const firstNavigationRoute=(role:Role)=>{
 };
 const dataMap:Record<string,string>={"Farmers":"farmers","My farmers":"farmers","My profile":"farmers","Register farmer":"farmers","Shareholders":"shareholders","My shareholding":"shareholders","Shareholder register":"shareholders","Purchases":"purchases","Purchase entries":"purchases","Purchase draft":"purchases","Sales":"sales","My sales":"purchases","Sales entries":"sales","Inventory":"commodities","Stock register":"commodities","Stock":"commodities","Commodities":"commodities","Commodity & unit master":"commodities","Buyers":"buyers","Expenses":"expenses","Payments":"payments","Farmer ledger":"ledger","Ledger & payments":"ledger","Filing calendar":"filings","Compliance":"filings","Documents":"documents","My inputs":"documents","Document vault":"documents","Licences":"licenseRecords","Meetings":"meetings","FPC directory":"fpcs","FPC onboarding":"fpcs","Company information":"fpcs","Godowns":"godowns","Baseline":"baseline","Baseline survey":"baseline","Gallery":"documents","Audit trail":"audit","Audit & support":"audit","Dividend & benefits":"payments","User management":"users","Bank accounts":"companyBankAccounts"};
 const enhancedScreens=new Set(["Home","Approvals","Farmers","My farmers","Register farmer","Baseline","Baseline survey","Commodity Baseline reports","Shareholders","Register shareholder","Shareholder register","Certificates","Shareholder reports","My shares","My shareholding","FPC","Meetings","Profile","Company information","Produce Purchase","Input Sale","Produce Sale","Input Purchase","Farmer Settlement","Advances & Dues","Dues","Bank statement upload","Payments and Receipts","Inventory","Stock dashboard","Stock register","Movements","Adjustments","Commodity-wise Inventory Report","Stock Movement Report","Current Stock Position","Stock Valuation Report","Network view","Reports"]);
-const adminScreens=new Set(["Setup checklist","Journey view","Approvals","FPC onboarding","FPC pending approvals","FPC profile","Reports & gallery","Consolidated MIS","Finance","Buyer master","Supplier master","Farmers","Multi-FPC links","Deleted farmers","Farmer ledger","Buyer ledger","Supplier ledger","Cash book","Bank book","Receipts and payments","Expense register","Income & expenditure","Profit & loss","Compliance","Statutory calendar","Filing tracker","Meeting records","Document vault","Licences","Audit trail","Sync centre","Analytics","Unit converter","Commodity & unit master"]);
+const adminScreens=new Set(["Setup checklist","Journey view","Approvals","FPC onboarding","FPC pending approvals","FPC profile","FPC directory","FPC management","Reports & gallery","Consolidated MIS","Finance","Buyer master","Supplier master","Farmers","Multi-FPC links","Deleted farmers","Farmer ledger","Buyer ledger","Supplier ledger","Cash book","Bank book","Receipts and payments","Expense register","Income & expenditure","Profit & loss","Compliance","Statutory calendar","Filing tracker","Meeting records","Document vault","Licences","Audit trail","Sync centre","Analytics","Unit converter","Commodity & unit master"]);
 const iconFor=(label:string)=>{
  if(/farmer|member|shareholder|user/i.test(label)) return Users;
  if(/purchase|procure/i.test(label)) return ArrowDownLeft;
@@ -97,13 +105,67 @@ function App() {
  const current=decodeURIComponent(path.split("/").pop()||"overview").replace(/-/g," ");
  const currentLabel=screenForNode(role,activeNode)||nav.find(n=>slug(n)===path.split("/").pop())||nav[0];
  const title=activeNode?.label||currentLabel;
- const recordName=path.startsWith("/farmers/")&&!["/farmers/new","/farmers/deleted","/farmers/multi-fpc","/farmers/baseline"].includes(normalizePath(path))
-   ? state.records.farmers.find(row=>row.id===decodeURIComponent(path.split("/").pop()||""))?.name
+ const normPath=normalizePath(path);
+ const pathParts=normPath.split("/").filter(Boolean);
+ const isFarmerDetail=pathParts[0]==="farmers"&&pathParts.length===2&&!["new","deleted","multi-fpc","baseline"].includes(pathParts[1]);
+ const isFarmerEdit=pathParts[0]==="farmers"&&pathParts.length===3&&pathParts[2]==="edit";
+ const farmerIdFromPath=(isFarmerDetail||isFarmerEdit)?decodeURIComponent(pathParts[1]):undefined;
+ const farmerRecord=farmerIdFromPath
+   ? (state.records.farmers?.find(row=>row.id===farmerIdFromPath) || state.records.farmerApplications?.find(row=>row.id===farmerIdFromPath))
    : undefined;
+ const isShareholderDetail=pathParts[0]==="shareholders"&&pathParts.length===2&&!["new","certificates","dividend","reports"].includes(pathParts[1]);
+ const shareholderIdFromPath=isShareholderDetail?decodeURIComponent(pathParts[1]):undefined;
+ const shareholderRecord=shareholderIdFromPath
+   ? state.records.shareholders?.find(row=>row.id===shareholderIdFromPath)
+   : undefined;
+ const isSettlementDetail=pathParts[0]==="agri-business"&&pathParts[1]==="farmer-settlement"&&pathParts.length===3;
+ const settlementFarmerId=isSettlementDetail?decodeURIComponent(pathParts[2]):undefined;
+ const settlementFarmerRecord=settlementFarmerId
+   ? (state.records.farmers?.find(row=>row.id===settlementFarmerId)||state.records.farmerApplications?.find(row=>row.id===settlementFarmerId))
+   : undefined;
+ const recordName=farmerRecord?.name||shareholderRecord?.name||settlementFarmerRecord?.name;
  const isMember=role==="Farmer"||role==="Shareholder";
  const isTsf=role==="TSF Central Admin";
  const isDirectorsStaff=normalizePath(path)==="/fpc-profile/directors-staff"||activeNode?.id==="directors-staff"||title==="Directors and Staff";
+ const isFpcProfile=normalizePath(path)==="/fpc-profile"||activeNode?.id==="company-details"||title==="Company Details"||currentLabel==="FPC profile";
+ const isFpcManagementRoute=normalizePath(path).startsWith("/fpc-management")||["FPC onboarding","FPC pending approvals","FPC directory","FPC management","All FPCs","Onboard New FPC","Pending Approvals"].includes(currentLabel);
  const fpcShortName=state.records.fpcs?.[0]?.name?state.records.fpcs[0].name.replace(/ Farmer Producer Company.*/," FPC"):"Green Valley FPC";
+ const exportCompanyProfileCsv=()=>{
+  const targetFpc=state.records.fpcs?.find(f=>f.id==="FPC-ODI-001")||state.records.fpcs?.[0];
+  const b=targetFpc?.details?.basic||{};
+  const r=targetFpc?.details?.roc||{};
+  const c=targetFpc?.details?.capital||{};
+  const l=targetFpc?.details?.location||{};
+  const primaryB=state.records.companyBankAccounts?.find(x=>x.isPrimary)||state.records.companyBankAccounts?.[0];
+  const profileData=[
+   ["Parameter","Registered Value"],
+   ["Company Legal Name",`"${b.legalName||targetFpc?.name||"Green Valley Farmer Producer Company Ltd."}"`],
+   ["FPC Identifier",`"${targetFpc?.fpcId||targetFpc?.id||"FPC-ODI-001"}"`],
+   ["CIN",`"${b.cin||"U01100OD2021PTC035612"}"`],
+   ["Registration Number",`"${r.registrationNumber||"035612"}"`],
+   ["Date of Incorporation",`"${r.incorporationDate||"14 Jun 2021"}"`],
+   ["Registrar of Companies",`"${r.office||"ROC Cuttack, Odisha"}"`],
+   ["PAN",`"${b.pan||"AAACG1234F"}"`],
+   ["TAN",`"${b.tan||"BBNG01234A"}"`],
+   ["GSTIN",`"${b.gstin||"21AAACG1234F1Z5"}"`],
+   ["Registered Office",`"${(r.registeredAddress||l.address||"").replaceAll('"','""')}"`],
+   ["District & State",`"${l.district||"Keonjhar"}, ${l.state||"Odisha"} - ${l.pin||"758001"}"`],
+   ["Contact Email",`"${b.contactEmail||"office@greenvalleyfpc.in"}"`],
+   ["Contact Mobile",`"${b.mobile||"9437004412"}"`],
+   ["Authorised Capital (INR)",String(c.authorisedCapital||1000000)],
+   ["Paid-up Capital (INR)",String(c.paidUpCapital||620000)],
+   ["Primary Settlement Bank",`"${primaryB?.bankName||"State Bank of India"}"`],
+   ["Branch",`"${primaryB?.branchName||"Keonjhar"}"`],
+   ["Account Number",`"${primaryB?.accountNumber||"389201004821"}"`],
+   ["IFSC Code",`"${primaryB?.ifscCode||"SBIN0001234"}"`],
+  ];
+  const content=[profileData[0].join(","),...profileData.slice(1).map(row=>row.join(","))].join("\r\n");
+  const blob=new Blob(["\ufeff",content],{type:"text/csv;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  const link=document.createElement("a");
+  link.href=url;link.download="green-valley-company-profile.csv";link.click();URL.revokeObjectURL(url);
+  setToast("Company profile details exported as CSV");
+ };
  const directorItems:DirectorRecord[]=((state.records.companyDirectors&&state.records.companyDirectors.length>0)?state.records.companyDirectors:initialDirectors) as DirectorRecord[];
  const filteredDirectors=useMemo(()=>{
   if(!search.trim())return directorItems;
@@ -507,6 +569,7 @@ function App() {
  }
 
  const routeFor=(name:string)=>{
+  if(name.startsWith("/"))return name;
   const nodes=flattenedNavigation(getRoleNavigation(role));
   const target=nodes.find(node=>slug(node.label)===slug(name)||slug(screenForNode(role,node)||"")===slug(name));
   if(target?.route)return target.route;
@@ -554,7 +617,75 @@ function App() {
   <div className="dashboard-columns lower"><section className="surface"><PanelHead title="Stock at a glance" sub="Main Godown · Keonjhar" action="Stock register" onClick={()=>setPath(routeFor("Stock register"))}/><div className="stock-list">{state.records.commodities.slice(0,5).map(c=><div className="stock-row" key={c.id}><span className="commodity-dot"/><b>{c.name}</b><div className="stock-meter"><i style={{width:`${Math.min(100,Number(c.stock)/600)}%`}}/></div><strong>{Number(c.stock).toLocaleString("en-IN")} kg</strong>{Number(c.stock)<Number(c.threshold)&&<small className="alert-tag">Low</small>}</div>)}</div></section><section className="surface"><PanelHead title="Compliance calendar" sub="Upcoming statutory deadlines" action="View calendar" onClick={()=>setPath(routeFor("Filing calendar"))}/>{state.records.filings.slice(2,5).map(f=><div className="filing-line" key={f.id}><span className={`filing-icon ${(f.status??"").includes("Overdue")?"overdue":""}`}><CalendarDays size={16}/></span><span><b>{f.name}</b><small>Due {f.due}</small></span><Status status={f.status}/></div>)}</section></div></>;
  };
  const listView=()=>{
-    const dedicated=["Sell produce","Buy inputs","Wallet","Transaction history","FPC rates","Market rates","Market intelligence","Update rates","My sales","Register farmer","Farmers","My farmers","Multi-FPC links","Deleted farmers","Baseline","Baseline survey","Commodity Baseline reports","Register shareholder","Shareholders","Shareholder register","Certificates","My shares","My shareholding","Dividend & benefits","FPC","Meetings","Profile","Company information","Shareholder reports","Reports","Reports & gallery","Consolidated MIS","Input supply","Wallet transactions","Farmer ledger","Buyer ledger","Supplier ledger","Cash book","Bank book","Receipts and payments","Expense register","Income & expenditure","Profit & loss","Analytics","Setup checklist","Journey view","Buyer master","Supplier master","Compliance","Statutory calendar","Filing tracker","Meeting records","Document vault","Audit trail","Sync centre","Finance","Ledger & payments","Purchase entries","Sales entries","Produce Purchase","Input Sale","Produce Sale","Input Purchase","Farmer Settlement","Advances & Dues","Dues","Bank statement upload","Payments and Receipts","Inventory","Stock dashboard","Stock register","Movements","Adjustments","Commodity-wise Inventory Report","Stock Movement Report","Current Stock Position","Stock Valuation Report","Network view","Approvals"];
+  if(isFarmerDetail&&farmerIdFromPath){
+   return (
+    <FarmerDetails
+     farmerId={farmerIdFromPath}
+     state={state}
+     setState={setState}
+     role={role}
+     setToast={setToast}
+     go={(dest)=>setPath(routeFor(dest))}
+     onEdit={(farmer)=>setPath(`/farmers/${farmer.id}/edit`)}
+    />
+   );
+  }
+  if(isFarmerEdit&&farmerIdFromPath){
+   return (
+    <EnhancedModules
+     state={state}
+     setState={setState}
+     role={role}
+     screen="Register farmer"
+     editFarmerId={farmerIdFromPath}
+     setToast={setToast}
+     go={(dest)=>setPath(routeFor(dest))}
+    />
+   );
+  }
+  if(isShareholderDetail&&shareholderIdFromPath){
+   return (
+    <ShareholderDetails
+     shareholderId={shareholderIdFromPath}
+     state={state}
+     setState={setState}
+     role={role}
+     setToast={setToast}
+     go={(dest)=>setPath(routeFor(dest))}
+    />
+   );
+  }
+  if(isSettlementDetail&&settlementFarmerId){
+   return (
+    <FarmerFinancialOverview
+     farmerId={settlementFarmerId}
+     state={state}
+     setState={setState}
+     role={role}
+     setToast={setToast}
+     go={(dest)=>setPath(routeFor(dest))}
+     onBack={()=>setPath("/agri-business/farmer-settlement")}
+    />
+   );
+  }
+  if(isFpcManagementRoute){
+   const fpcScreen = normalizePath(path) === "/fpc-management/onboard" ? "FPC onboarding"
+     : normalizePath(path) === "/fpc-management/approvals" ? "FPC pending approvals"
+     : currentLabel === "FPC onboarding" ? "FPC onboarding"
+     : currentLabel === "FPC pending approvals" ? "FPC pending approvals"
+     : "FPC directory";
+   return (
+    <FpcManagement
+     state={state}
+     setState={setState}
+     role={role}
+     screen={fpcScreen}
+     setToast={setToast}
+     go={(dest)=>setPath(routeFor(dest))}
+    />
+   );
+  }
+  const dedicated=["FPC onboarding","FPC pending approvals","FPC directory","FPC management","All FPCs","Onboard New FPC","Pending Approvals","Sell produce","Buy inputs","Wallet","Transaction history","FPC rates","Market rates","Market intelligence","Update rates","My sales","Register farmer","Farmers","My farmers","Multi-FPC links","Deleted farmers","Baseline","Baseline survey","Commodity Baseline reports","Register shareholder","Shareholders","Shareholder register","Certificates","My shares","My shareholding","Dividend & benefits","FPC","Meetings","Profile","Company information","Shareholder reports","Reports","Reports & gallery","Consolidated MIS","Input supply","Wallet transactions","Farmer ledger","Buyer ledger","Supplier ledger","Cash book","Bank book","Receipts and payments","Expense register","Income & expenditure","Profit & loss","Analytics","Setup checklist","Journey view","Buyer master","Supplier master","Compliance","Statutory calendar","Filing tracker","Meeting records","Document vault","Audit trail","Sync centre","Finance","Ledger & payments","Purchase entries","Sales entries","Produce Purchase","Input Sale","Produce Sale","Input Purchase","Farmer Settlement","Advances & Dues","Dues","Bank statement upload","Payments and Receipts","Inventory","Stock dashboard","Stock register","Movements","Adjustments","Commodity-wise Inventory Report","Stock Movement Report","Current Stock Position","Stock Valuation Report","Network view","Approvals"];
    if(dedicated.includes(currentLabel)){const content=featureScreen(currentLabel);if(content)return content;}
   if(currentLabel==="Approvals")return <ApprovalInbox rows={state.records.purchases.filter(r=>r.status==="Submitted").slice(0,3).concat(state.records.farmers.filter(r=>r.status==="Submitted").slice(0,2),[{id:"ADJ-009",farmer:"Main Godown",commodity:"Arhar stock adjustment",amount:280,status:"Submitted",date:"Today"},{id:"EXP-009",name:"Transport expense",amount:8400,status:"Submitted",date:"Today"}])} onAction={updateStatus}/>;
   if(currentLabel==="Unit converter")return <section className="surface converter"><div><span className="eyebrow">QUANTITY CONVERSION</span><h2>One stock ledger. Every unit.</h2><p>Conversions use the FPC unit master. Weight conversion: kg base.</p><div className="converter-controls"><input type="number" value={quantity} onChange={e=>setQuantity(e.target.value)}/><select value={fromUnit} onChange={e=>setFromUnit(e.target.value)}>{["g","kg","quintal","tonne","bag"].map(u=><option key={u}>{u}</option>)}</select><span>to</span><select value={toUnit} onChange={e=>setToUnit(e.target.value)}>{["g","kg","quintal","tonne","bag"].map(u=><option key={u}>{u}</option>)}</select></div><div className="convert-result">{Number(convert(Number(quantity||0),fromUnit,toUnit).toFixed(2)).toLocaleString("en-IN")} <span>{toUnit}</span></div><p className="helper">1 bag = 50 kg · 1 quintal = 100 kg · 1 tonne = 1,000 kg</p></div></section>;
@@ -575,14 +706,14 @@ function App() {
   </div>}
   <div className="table-toolbar">
     <div>
-      <h2>{isBankAccounts?"Bank Accounts":isDirectorsTab?"Company Directors":currentLabel}</h2>
-      <p>{isAudit?"A complete, tamper-evident record of actions":isBankAccounts?"Manage registered bank account details for Green Valley Farmer Producer Company.":isDirectorsTab?`${filteredDirectors.length} directors · ${fpcShortName}`:`${displayRows.length} records · ${fpcShortName}`}</p>
+      <h2>{isBankAccounts?"Bank Accounts":isDirectorsTab?"Company Directors":isFpcProfile?"Company Details":currentLabel}</h2>
+      <p>{isAudit?"A complete, tamper-evident record of actions":isBankAccounts?"Manage registered bank account details for Green Valley Farmer Producer Company.":isDirectorsTab?`${filteredDirectors.length} directors · ${fpcShortName}`:isFpcProfile?`Official profile, statutory registration and governance · ${fpcShortName}`:`${displayRows.length} records · ${fpcShortName}`}</p>
     </div>
     <div className="toolbar-actions">
-      <div className="searchbox"><Search size={15}/><input aria-label={isBankAccounts?"Search bank accounts":isDirectorsTab?"Search directors":"Search records"} placeholder={isBankAccounts?"Search bank, account, IFSC, branch":isDirectorsTab?"Search directors":"Search records"} value={search} onChange={e=>{setSearch(e.target.value);setPage(1)}} /></div>
-      {isBankAccounts?<select className="filter-select" value={filter} onChange={e=>{setFilter(e.target.value);setPage(1)}}><option>All</option><option>Active</option><option>Inactive</option><option>Primary</option></select>:!isDirectorsTab&&<select className="filter-select" value={filter} onChange={e=>{setFilter(e.target.value);setPage(1)}}><option>All</option>{["Approved","Submitted","Pending","Active","Verified","Rejected","Paid"].map(x=><option key={x}>{x}</option>)}</select>}
-      {canCreate&&(isBankAccounts?<button className="btn-primary compact" onClick={()=>openCreate("Add bank account",{accountHolderName:"Green Valley Farmer Producer Company Ltd.",accountType:"Current",isPrimary:bankAccountItems.length===0?"Yes":"No",status:"Active"})}><Plus size={16}/>Add bank account</button>:<button className="btn-primary compact" onClick={()=>openCreate(createLabel,isDirectorsTab?{role:"Director",signatory:"Yes"}:{})}><Plus size={16}/>{isDirectorsTab?"Add director":createLabel}</button>)}
-      <button className="icon-button" aria-label="Export" onClick={isBankAccounts?exportBankAccountsCsv:isDirectorsTab?exportDirectorsCsv:()=>setToast("Report exported as a mock Excel workbook")}><Download size={17}/></button>
+      <div className="searchbox"><Search size={15}/><input aria-label={isBankAccounts?"Search bank accounts":isDirectorsTab?"Search directors":isFpcProfile?"Search company profile & directors":"Search records"} placeholder={isBankAccounts?"Search bank, account, IFSC, branch":isDirectorsTab?"Search directors":isFpcProfile?"Search company profile & directors":"Search records"} value={search} onChange={e=>{setSearch(e.target.value);setPage(1)}} /></div>
+      {isBankAccounts?<select className="filter-select" value={filter} onChange={e=>{setFilter(e.target.value);setPage(1)}}><option>All</option><option>Active</option><option>Inactive</option><option>Primary</option></select>:!isDirectorsTab&&<select className="filter-select" value={filter} onChange={e=>{setFilter(e.target.value);setPage(1)}}><option>All</option>{isFpcProfile?<option>Active</option>:["Approved","Submitted","Pending","Active","Verified","Rejected","Paid"].map(x=><option key={x}>{x}</option>)}</select>}
+      {canCreate&&!isFpcProfile&&(isBankAccounts?<button className="btn-primary compact" onClick={()=>openCreate("Add bank account",{accountHolderName:"Green Valley Farmer Producer Company Ltd.",accountType:"Current",isPrimary:bankAccountItems.length===0?"Yes":"No",status:"Active"})}><Plus size={16}/>Add bank account</button>:<button className="btn-primary compact" onClick={()=>openCreate(createLabel,isDirectorsTab?{role:"Director",signatory:"Yes"}:{})}><Plus size={16}/>{isDirectorsTab?"Add director":createLabel}</button>)}
+      <button className="icon-button" aria-label="Export" onClick={isBankAccounts?exportBankAccountsCsv:isDirectorsTab?exportDirectorsCsv:isFpcProfile?exportCompanyProfileCsv:()=>setToast("Report exported as a mock Excel workbook")}><Download size={17}/></button>
     </div>
   </div>
   {isDirectorsTab?(
@@ -919,12 +1050,12 @@ function App() {
         </div>
       </div>
     </div>
-  ):currentLabel.includes("Reports")?<ReportLibrary setToast={setToast}/>:currentLabel.includes("Settings")||currentLabel==="Users & settings"?<SettingsView state={state} setState={setState} onReset={()=>setModal("reset")} setToast={setToast}/>:currentLabel.includes("Sync centre")?<SyncView state={state} setState={setState} setToast={setToast}/>:currentLabel.includes("Bulk upload")?<BulkUpload setToast={setToast}/>:currentLabel.includes("Messages")||currentLabel.includes("support")?<Messages state={state} setToast={setToast} onCreate={()=>openCreate("Message")}/>:currentLabel.includes("FPC profile")?<Profile setToast={setToast}/>:currentLabel.includes("Monitoring")?<Monitoring state={state} setToast={setToast}/>:<>{!displayRows.length?<div className="empty-state"><span className="empty-mark"><Search size={22}/></span><h3>No records found</h3><p>Try adjusting your search or filters. New records will appear here.</p>{canCreate&&<button className="btn-primary" onClick={()=>openCreate(createLabel)}><Plus size={16}/>{createLabel}</button>}</div>:<div className="table-scroll"><table><thead><tr>{columns.map(c=><th key={c}>{c.replace(/([A-Z])/g," $1")}</th>)}<th>Actions</th></tr></thead><tbody>{pageRows.map(row=><tr key={row.id}>{columns.map(col=><td key={col}>{col==="status"||col==="kyc"?<Status status={String(row[col])}/>:col==="amount"||col==="capital"||col==="rate"||col==="margin"||col==="debit"||col==="credit"?money(Number(row[col]||0)):col==="quantity"?<>{Number(row[col]).toLocaleString("en-IN")} {row.unit||"kg"}{row.unit&&row.unit!=="kg"&&<small className="sub-cell"> · {convert(Number(row[col]),row.unit,"kg").toLocaleString("en-IN")} kg</small>}</>:col==="mobile"&&role!=="FPC Admin / Manager"?String(row[col]).replace(/\d{4}$/,"XXXX"):<span className={col==="id"?"mono":""}>{String(row[col]??"—")}</span>}</td>)}<td><div className="row-actions">{row.status==="Submitted"&&can(role,currentLabel,"A")&&<button className="approve-mini" onClick={()=>updateStatus(row,"Approved")} title="Approve"><Check size={15}/></button>}{can(role,currentLabel,"E")&&<button className="icon-button row-more" onClick={()=>editRecord(row)} title="Edit record"><Edit3 size={14}/></button>}{can(role,currentLabel,"D")&&<button className="icon-button row-more" onClick={()=>softDelete(row)} title="Delete record"><Trash2 size={14}/></button>}<button className="icon-button row-more" onClick={()=>setModal(`detail:${row.id}`)} title="View details"><MoreHorizontal size={17}/></button></div></td></tr>)}</tbody></table></div>}<div className="table-footer"><span>Showing {displayRows.length?(page-1)*14+1:0}–{Math.min(page*14,displayRows.length)} of {displayRows.length} records</span><div><button disabled={page===1} onClick={()=>setPage(v=>Math.max(1,v-1))}>Previous</button><span className="page-indicator">{page} / {pageCount}</span><button disabled={page===pageCount} onClick={()=>setPage(v=>Math.min(pageCount,v+1))}>Next</button></div></div></>}</section>;
+  ):currentLabel.includes("Reports")?<ReportLibrary setToast={setToast}/>:currentLabel.includes("Settings")||currentLabel==="Users & settings"?<SettingsView state={state} setState={setState} onReset={()=>setModal("reset")} setToast={setToast}/>:currentLabel.includes("Sync centre")?<SyncView state={state} setState={setState} setToast={setToast}/>:currentLabel.includes("Bulk upload")?<BulkUpload setToast={setToast}/>:currentLabel.includes("Messages")||currentLabel.includes("support")?<Messages state={state} setToast={setToast} onCreate={()=>openCreate("Message")}/>:isFpcProfile||currentLabel.includes("FPC profile")?<CompanyProfileView state={state} setState={setState} role={role} search={search} setToast={setToast} log={log}/>:currentLabel.includes("Monitoring")?<Monitoring state={state} setToast={setToast}/>:<>{!displayRows.length?<div className="empty-state"><span className="empty-mark"><Search size={22}/></span><h3>No records found</h3><p>Try adjusting your search or filters. New records will appear here.</p>{canCreate&&<button className="btn-primary" onClick={()=>openCreate(createLabel)}><Plus size={16}/>{createLabel}</button>}</div>:<div className="table-scroll"><table><thead><tr>{columns.map(c=><th key={c}>{c.replace(/([A-Z])/g," $1")}</th>)}<th>Actions</th></tr></thead><tbody>{pageRows.map(row=><tr key={row.id}>{columns.map(col=><td key={col}>{col==="status"||col==="kyc"?<Status status={String(row[col])}/>:col==="amount"||col==="capital"||col==="rate"||col==="margin"||col==="debit"||col==="credit"?money(Number(row[col]||0)):col==="quantity"?<>{Number(row[col]).toLocaleString("en-IN")} {row.unit||"kg"}{row.unit&&row.unit!=="kg"&&<small className="sub-cell"> · {convert(Number(row[col]),row.unit,"kg").toLocaleString("en-IN")} kg</small>}</>:col==="mobile"&&role!=="FPC Admin / Manager"?String(row[col]).replace(/\d{4}$/,"XXXX"):<span className={col==="id"?"mono":""}>{String(row[col]??"—")}</span>}</td>)}<td><div className="row-actions">{row.status==="Submitted"&&can(role,currentLabel,"A")&&<button className="approve-mini" onClick={()=>updateStatus(row,"Approved")} title="Approve"><Check size={15}/></button>}{can(role,currentLabel,"E")&&<button className="icon-button row-more" onClick={()=>editRecord(row)} title="Edit record"><Edit3 size={14}/></button>}{can(role,currentLabel,"D")&&<button className="icon-button row-more" onClick={()=>softDelete(row)} title="Delete record"><Trash2 size={14}/></button>}<button className="icon-button row-more" onClick={()=>setModal(`detail:${row.id}`)} title="View details"><MoreHorizontal size={17}/></button></div></td></tr>)}</tbody></table></div>}<div className="table-footer"><span>Showing {displayRows.length?(page-1)*14+1:0}–{Math.min(page*14,displayRows.length)} of {displayRows.length} records</span><div><button disabled={page===1} onClick={()=>setPage(v=>Math.max(1,v-1))}>Previous</button><span className="page-indicator">{page} / {pageCount}</span><button disabled={page===pageCount} onClick={()=>setPage(v=>Math.min(pageCount,v+1))}>Next</button></div></div></>}</section>;
  };
  return <div className={`app-shell ${isTsf?"tsf-shell":""} ${isMember?"member-shell":""}`}>
  <FpcNavigation role={role} currentPath={path} onNavigate={setPath} username={user.name} initials={user.initials} offline={state.offline} onOfflineToggle={()=>setState(s=>({...s,offline:!s.offline}))} badges={{approvals:7}} recordName={recordName} showBreadcrumbs={false}/>
  <main className="main-area"><header className="topbar"><NavigationBreadcrumbs role={role} currentPath={path} onNavigate={setPath} recordName={recordName}/><div className="top-actions"><span className="secure-pill"><ShieldCheck size={14}/> Demo mode</span><select aria-label="Select language" value={language} onChange={e=>{setLanguage(e.target.value);setState(s=>({...s,language:e.target.value}))}}><option>English</option><option>Hindi</option><option>Odia</option></select><button className="top-icon" title="Notifications" onClick={()=>setModal("notifications")}><Bell size={18}/><i/></button><div className="role-menu-wrap"><button className="role-switch" onClick={()=>setMenu(!menu)}><span className="avatar small-avatar">{user.initials}</span><span>{user.name}</span><ChevronDown size={14}/></button>{menu&&<div className="role-menu"><div className="role-menu-label">Switch demo role</div>{roles.map(r=><button key={r} className={role===r?"selected":""} onClick={()=>setRole(r)}><span>{roleUsers[r].initials}</span>{r}</button>)}<button className="sign-out" onClick={()=>{setState(s=>({...s,role:null as any}));setMenu(false)}}>Return to role picker</button></div>}</div></div></header>
- <div className="page-wrap"><div className="page-heading"><div><div className="eyebrow">{getActiveNavigationModule(role,path)||(isTsf?"PORTFOLIO VIEW":isMember?"YOUR MEMBERSHIP":"OPERATIONS · FY 2026–27")}</div><h1>{isLicencesPage?"Company Registration & Licences":(labels[language]?.[title]||title)}</h1><p>{isLicencesPage?"View and manage official company registration details, statutory registrations, and compliance documents.":isTsf?"A clearer view of delivery across partner FPCs.":isMember?"Your produce, benefits and company updates in one place.":title==="Overview"?"Good morning, Bijay. Here is the picture across your FPC.":`Manage ${title.toLowerCase()} for Green Valley Farmer Producer Company.`}</p></div><div className="heading-right">{role==="Director / Board Member / Auditor"&&<span className="readonly-pill"><ShieldCheck size={14}/> Read-only access</span>}<span className={`network-pill ${state.offline?"network-offline":""}`}><span/>{state.offline?"Offline · queued":"Online"}</span><button className="help-button" onClick={()=>setToast("Help centre · Contact the Green Valley FPC office")}><CircleHelp size={17}/> Help</button></div></div>{dashboard?renderDash():listView()}</div>
+ <div className="page-wrap">{!isFpcManagementRoute&&<div className="page-heading"><div><div className="eyebrow">{getActiveNavigationModule(role,path)||(isTsf?"PORTFOLIO VIEW":isMember?"YOUR MEMBERSHIP":"OPERATIONS · FY 2026–27")}</div><h1>{isLicencesPage?"Company Registration & Licences":isFarmerDetail?(farmerRecord?.name||"Farmer Details"):isFarmerEdit?`Edit Farmer · ${farmerRecord?.name||farmerIdFromPath}`:isShareholderDetail?(shareholderRecord?.name||"Shareholder Details"):(labels[language]?.[title]||title)}</h1><p>{isLicencesPage?"View and manage official company registration details, statutory registrations, and compliance documents.":isFarmerDetail?`Profile, KYC, baseline and landholding details for ${farmerRecord?.name||"farmer"} (${farmerIdFromPath}).`:isFarmerEdit?`Update profile and baseline details for ${farmerRecord?.name||"farmer"} (${farmerIdFromPath}). Farmer ID is permanently preserved.`:isShareholderDetail?`Official share allotment, folio, and distinctive number details for ${shareholderRecord?.name||"shareholder"} (${shareholderIdFromPath}).`:isTsf?"A clearer view of delivery across partner FPCs.":isMember?"Your produce, benefits and company updates in one place.":title==="Overview"?"Good morning, Bijay. Here is the picture across your FPC.":`Manage ${title.toLowerCase()} for Green Valley Farmer Producer Company.`}</p></div><div className="heading-right">{role==="Director / Board Member / Auditor"&&<span className="readonly-pill"><ShieldCheck size={14}/> Read-only access</span>}<span className={`network-pill ${state.offline?"network-offline":""}`}><span/>{state.offline?"Offline · queued":"Online"}</span><button className="help-button" onClick={()=>setToast("Help centre · Contact the Green Valley FPC office")}><CircleHelp size={17}/> Help</button></div></div>}{dashboard?renderDash():listView()}</div>
  <footer className="app-footer"><span>FPC Development Project, supported by Citibank. Implemented with Tata Steel Foundation.</span><span>Prototype · Browser data only</span></footer></main>
   {modal&&<Modal title={modal.startsWith("detail:bank:")?"Bank account details":modal.startsWith("detail:licence:")?"Document details":modal.startsWith("detail:")?`Record details · ${modal.slice(7)}`:modal==="reset"?"Reset demo data":modal==="notifications"?"Notifications":modal==="Add bank account"?"Add bank account":modal==="Edit bank account"?"Edit bank account":modal==="Add licence / document"?"Add licence / document":modal==="Edit licence / document"?"Edit licence / document":modal.toLowerCase().includes("user")&&newRow.role==="Director"?"Add director":modal} onClose={()=>setModal("")}>{modal==="reset"?<div className="modal-content"><p>This restores the original Green Valley demo dataset. Any records created during this session will be removed.</p><button className="btn-danger" onClick={reset}>Reset demo data</button></div>:modal==="notifications"?<div className="notification-list">{state.notifications.map(n=><div key={n.id}><span className="unread-dot"/><span><b>{n.title}</b><small>{n.date}</small></span></div>)}</div>:modal.startsWith("detail:bank:")?<div className="detail-modal" style={{display:"block"}}>{(()=>{const acc=bankAccountItems.find(b=>b.id===modal.slice(12));if(!acc)return <p>Account record not found.</p>;return <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px 18px",width:"100%"}}><div><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Bank Name</small><p style={{fontSize:"13px",fontWeight:600,margin:"4px 0 0",color:"#2c4237"}}>{acc.bankName}</p></div><div><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Status & Primary</small><div style={{display:"flex",gap:"6px",alignItems:"center",marginTop:"4px"}}><Status status={acc.status}/>{acc.isPrimary&&<span className="status-chip green" style={{marginLeft:"6px"}}><i/>Primary</span>}</div></div><div><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Account Holder</small><p style={{fontSize:"11px",margin:"4px 0 0",color:"#34483a"}}>{acc.accountHolderName}</p></div><div><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Account Type</small><p style={{fontSize:"11px",margin:"4px 0 0",color:"#34483a"}}>{acc.accountType}</p></div><div><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Account Number</small><p style={{fontSize:"12px",fontFamily:"monospace",margin:"4px 0 0",color:"#2c4237"}}>{acc.accountNumber}</p></div><div><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>IFSC Code</small><p style={{fontSize:"12px",fontFamily:"monospace",margin:"4px 0 0",color:"#2c4237"}}>{acc.ifscCode}</p></div><div style={{gridColumn:"1/-1"}}><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Branch Name & Address</small><p style={{fontSize:"11px",margin:"4px 0 0",color:"#34483a"}}><b>{acc.branchName}</b>{acc.branchAddress?` · ${acc.branchAddress}`:""}</p></div></div>;})()}<div className="modal-buttons" style={{marginTop:"20px"}}><button className="btn-outline" onClick={()=>setModal("")}>Close</button></div></div>:modal.startsWith("detail:licence:")?<div className="detail-modal" style={{display:"block"}}>{(()=>{const lic=licenceItems.find(l=>l.id===modal.slice(15));if(!lic)return <p>Document record not found.</p>;return <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px 18px",width:"100%"}}><div style={{gridColumn:"1/-1"}}><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Document Name</small><p style={{fontSize:"14px",fontWeight:700,margin:"4px 0 0",color:"#223929"}}>{lic.name}</p></div><div><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Category & Status</small><div style={{display:"flex",gap:"6px",alignItems:"center",marginTop:"4px"}}><span className="status-chip slate">{lic.category||"Statutory"}</span><Status status={lic.status}/></div></div><div><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Registration / Licence Number</small><p style={{fontSize:"12px",fontFamily:"monospace",fontWeight:600,margin:"4px 0 0",color:"#223929"}}>{lic.number}</p></div><div><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Issuing Authority</small><p style={{fontSize:"11px",margin:"4px 0 0",color:"#34483a"}}>{lic.authority}</p></div><div><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Issue Date</small><p style={{fontSize:"11px",margin:"4px 0 0",color:"#34483a"}}>{lic.issueDate}</p></div><div><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Validity / Expiry</small><p style={{fontSize:"11px",fontWeight:600,margin:"4px 0 0",color:"#223929"}}>{lic.expiry}</p></div><div style={{gridColumn:"1/-1"}}><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Attached Document File</small><p style={{fontSize:"11px",margin:"4px 0 0",color:"#1b5e20",display:"flex",alignItems:"center",gap:"5px"}}><FileText size={14}/> {lic.documentName||"Not attached"}</p></div></div>;})()}<div className="modal-buttons" style={{marginTop:"20px"}}><button className="btn-outline" onClick={()=>setModal("")}>Close</button><button className="btn-primary" onClick={()=>{setToast("Document certificate downloaded");setModal("");}}><Download size={15}/> Download document</button></div></div>:modal.startsWith("detail:")?<div className="detail-modal"><p>Record information from the local demo workspace.</p><Status status={items.find(x=>x.id===modal.slice(7))?.status||"Approved"}/><button className="btn-outline" onClick={()=>setToast("Record detail copied to clipboard")}>Copy record reference</button></div>:<div className="modal-content"><div className="form-grid">{modal==="Add bank account"||modal==="Edit bank account"?<>
 <label>Bank name *<input required placeholder="e.g. State Bank of India" value={newRow.bankName||""} onChange={e=>setNewRow(v=>({...v,bankName:e.target.value}))}/></label>
@@ -975,7 +1106,6 @@ function SyncView({state,setState,setToast}:{state:State;setState:(fn:(s:State)=
 function BulkUpload({setToast}:{setToast:(s:string)=>void}){return <div className="bulk-layout"><section className="surface upload-drop"><span className="upload-icon"><Download size={23}/></span><h2>Bring in a spreadsheet</h2><p>Upload farmer, shareholder or procurement records. We’ll check every row before import.</p><button className="btn-outline" onClick={()=>setToast("Template downloaded · farmer-register-template.xlsx")}><Download size={15}/> Download Excel template</button><label className="file-pick">Choose a file<input type="file" accept=".csv,.xlsx,.xls" onChange={()=>setToast("48 rows read · 44 valid · 4 need your attention")}/></label></section><section className="surface validation-report"><span className="eyebrow">SAMPLE VALIDATION</span><h3>48 rows read <span className="valid-count">44 valid</span></h3><div className="validation-error">Row 12 <span>Mobile must be 10 digits</span></div><div className="validation-error">Row 19 <span>Unknown village</span></div><div className="validation-error">Row 27 <span>Land cannot be zero</span></div><div className="validation-error">Row 33 <span>Unit “qntl” not recognised · use “quintal”</span></div><button className="btn-primary" onClick={()=>setToast("44 valid rows imported as drafts")}>Import valid rows as drafts <ArrowDownLeft size={15}/></button></section></div>}
 function ReportLibrary({setToast}:{setToast:(s:string)=>void}){const reports=["Farmer register","Farmer-wise supply","Shareholder register","Share capital report","Purchase register","Sales by buyer","Stock position by godown","Farmer ledger","Buyer ledger","Payables ageing","Profit & loss","Dividend statement","Filing status","Audit trail"];return <div className="report-grid">{reports.map((r,i)=><button className="report-card" key={r} onClick={()=>setToast(`${r} report preview ready · Excel, PDF or print`)}><span className="report-icon"><FileText size={18}/></span><span><b>{r}</b><small>{["Farmers","Shareholders","Purchases","Sales","Stock","Finance","Compliance","Audit"][i%8]} · Updated today</small></span><Download size={16}/></button>)}</div>}
 function Messages({state,setToast,onCreate}:{state:State;setToast:(s:string)=>void;onCreate:()=>void}){return <div className="messages-grid"><section className="surface"><PanelHead title="Inbox" sub="Updates and notices from the FPC"/>{state.records.messages.map(m=><div className="message-row" key={m.id}><span className="notice-icon"><Bell size={16}/></span><span><b>{m.title}</b><small>{m.date} · {m.status}</small></span><Status status={m.status}/></div>)}</section><section className="surface compose-card"><span className="eyebrow">MESSAGE CENTRE</span><h2>Reach your community</h2><p>Compose a demo notice for all farmers, a village or a specific member group.</p><button className="btn-primary" onClick={onCreate}>Compose a message <Plus size={16}/></button><button className="btn-outline" onClick={()=>setToast("Support ticket created · TKT-2026-0012")}>Raise a support ticket</button><small>Delivery is simulated. No SMS or email is sent.</small></section></div>}
-function Profile({setToast}:{setToast:(s:string)=>void}){return <div className="profile-grid"><section className="surface company-profile"><div className="profile-banner"><span className="company-seal"><Building2 size={24}/></span><span><small>FARMER PRODUCER COMPANY</small><h2>Green Valley Farmer Producer Company Ltd.</h2><p>FPC-ODI-001 · Active since 14 Jun 2021</p></span><button className="btn-outline" onClick={()=>setToast("Company profile editing enabled")}>Edit profile</button></div><div className="company-details"><div><small>REGISTERED OFFICE</small><b>Village Green Valley, Block Keonjhar Sadar</b><span>Dist. Keonjhar, Odisha 758001</span></div><div><small>CIN</small><b>U01100OD2021PTC035612</b></div><div><small>PAN</small><b>AAACG1234F</b></div><div><small>GSTIN</small><b>21AAACG1234F1Z5</b></div><div><small>BANK</small><b>State Bank of India · Keonjhar</b><span>Account ending 4821 · IFSC SBIN0001234</span></div><div><small>CAPITAL</small><b>Paid-up {money(620000)}</b><span>Authorised {money(1000000)}</span></div></div></section><section className="surface"><PanelHead title="Board of directors" sub="Six directors on record"/>{["Sunita Behera · Chairperson","Bijay Kumar Mohanty · CEO","Ramesh Chandra Nayak","Laxmi Patra","Dillip Sahoo","Kanchan Munda"].map((n,i)=><div className="director-line" key={n}><span className="avatar">{n.split(" ").map(x=>x[0]).slice(0,2).join("")}</span><b>{n}</b>{i===0&&<Status status="Active"/>}</div>)}</section></div>}
 function Monitoring({state,setToast}:{state:State;setToast:(s:string)=>void}){const checkpoints=["Profile","Farmers","Members","Baseline","Procurement","Sales","Stock","Ledgers","Filings","Sync"];return <section className="surface table-surface"><div className="table-toolbar"><div><h2>Delivery, at a glance</h2><p>Checkpoint status across every partner FPC.</p></div><button className="btn-outline" onClick={()=>setToast("Reminder sent to selected FPC administrators")}>Send reminder</button></div><div className="monitoring-grid"><div className="monitoring-row header"><b>FPC</b>{checkpoints.map(x=><span key={x}>{x}</span>)}</div>{state.records.fpcs.map((f,fi)=><div className="monitoring-row" key={f.id}><b>{f.name}</b>{checkpoints.map((x,i)=><button key={x} className={`matrix-cell matrix-${(fi+i)%7===5?"bad":(fi+i)%5===3?"warn":"good"}`} title={`${x} · ${f.name}`} onClick={()=>setToast(`${x} · ${f.name} · Updated 12 Oct 2026`)}><i/></button>)}</div>)}</div><div className="monitor-legend"><span><i className="matrix-cell matrix-good"><i/></i> Done</span><span><i className="matrix-cell matrix-warn"><i/></i> In progress</span><span><i className="matrix-cell matrix-bad"><i/></i> Not done</span></div></section>}
 
 export default App;

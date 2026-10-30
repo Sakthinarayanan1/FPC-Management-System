@@ -220,8 +220,9 @@ function NavigationTree({
         >
           {parent.children?.map((child, index) => {
             const previousCaption = parent.children?.[index - 1]?.caption;
+            const isNewCaption = Boolean(child.caption && child.caption !== previousCaption);
             return <span className="fpc-nav-child-wrap" key={child.id}>
-              {child.caption && child.caption !== previousCaption && <span className="fpc-nav-caption">{child.caption}</span>}
+              {isNewCaption && <span className={`fpc-nav-caption${index > 0 ? " is-subsequent" : ""}`}>{child.caption}</span>}
               {renderLeaf(child, true)}
             </span>;
           })}
@@ -247,10 +248,13 @@ function NavigationTree({
         style={{ top: `${flyoutTop}px`, marginTop: 0 }}
         data-testid={`nav-flyout-${parent.id}`}>
         <h3><parent.icon size={16} />{parent.label}</h3>
-        {parent.children.map((child, index) => <span className="fpc-nav-child-wrap" key={child.id}>
-          {child.caption && child.caption !== parent.children?.[index - 1]?.caption && <span className="fpc-nav-caption">{child.caption}</span>}
-          {renderLeaf(child, true)}
-        </span>)}
+        {parent.children.map((child, index) => {
+          const isNewCaption = Boolean(child.caption && child.caption !== parent.children?.[index - 1]?.caption);
+          return <span className="fpc-nav-child-wrap" key={child.id}>
+            {isNewCaption && <span className={`fpc-nav-caption${index > 0 ? " is-subsequent" : ""}`}>{child.caption}</span>}
+            {renderLeaf(child, true)}
+          </span>;
+        })}
       </div>;
     })()}
   </div>;
