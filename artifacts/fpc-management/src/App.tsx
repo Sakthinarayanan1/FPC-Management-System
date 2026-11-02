@@ -12,6 +12,9 @@ import ShareholderDetails from "./ShareholderDetails";
 import CompanyProfileView from "./CompanyProfileView";
 import FarmerFinancialOverview from "./FarmerFinancialOverview";
 import FpcManagement from "./FpcManagement";
+import ServicesModule from "./ServicesModule";
+import AccessDenied from "./AccessDenied";
+import TsfCentralMonitoring from "./TsfCentralMonitoring";
 import "./index.css";
 
 const slug=(s:string)=>s.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"");
@@ -23,19 +26,20 @@ const matchesRoute=(route:string|undefined,path:string)=>{
 };
 const flattenedNavigation=(nodes:readonly NavigationNode[]):NavigationNode[]=>nodes.flatMap(node=>[node,...(node.children?flattenedNavigation(node.children):[])]);
 const screenAliases:Record<string,string>={
- "All FPCs":"FPC directory","Onboard New FPC":"FPC onboarding","Pending Approvals":"FPC pending approvals","FPC Management":"FPC directory","FPC Directory":"FPC directory","FPC Onboarding":"FPC onboarding","MIS Reports":"Consolidated MIS",
+ "FPC List":"FPC directory","fpc-list":"FPC directory","All FPCs":"FPC directory","Onboard New FPC":"FPC onboarding","Pending Approvals":"FPC pending approvals","FPC Management":"FPC directory","FPC Directory":"FPC directory","FPC Onboarding":"FPC onboarding","MIS Reports":"Consolidated MIS",
   "Input Inventory":"Inventory","Cash Book":"Cash book","Bank Book":"Bank book","Receipts and Payments":"Receipts and payments","Expense Register":"Expense register","Income and Expenditure":"Income & expenditure","Statutory Calendar":"Statutory calendar","Unit Converter":"Unit converter","Commodity and Unit Master":"Commodity & unit master","Supplier Master":"Supplier master",
  "All Farmers":"Farmers","Register Farmer":"Register farmer","Baseline and Surveys":"Baseline","Multi-FPC Links":"Multi-FPC links","Deleted Farmers":"Deleted farmers",
  "All Shareholders":"Shareholders","Register Shareholder":"Register shareholder","Share Certificates":"Certificates","Dividend and Patronage":"Dividends","Share Capital Reports":"Shareholder reports",
  "Company Details":"FPC profile","Licences and Documents":"Licences","Directors and Staff":"User management","Bank Accounts":"Bank accounts","Change History":"Audit trail",
-  "Advances and Dues":"Advances & Dues","Buyers and Suppliers":"Buyer master","Services":"Input supply","Produce Inventory":"Inventory",
+  "Advances and Dues":"Advances & Dues","Buyers and Suppliers":"Buyer master","Services":"Services","Produce Inventory":"Inventory",
  "Stock Movement":"Movements","Transfers and Adjustments":"Adjustments","Godowns and Units":"Godowns","Cash and Bank":"Cash book","Filing Tracker":"Filing tracker",
  "Report Library":"Reports & gallery","Users and Roles":"User management","Sync Centre":"Sync centre","Support":"Audit & support",
- "National Dashboard":"National dashboard","Finance Dashboard":"Finance dashboard","Procurement Dashboard":"Procurement dashboard","Sales Dashboard":"Sales dashboard",
+ "National Dashboard":"National dashboard","Network Dashboard":"National dashboard","Network Analytics":"Analytics","Finance Dashboard":"Finance dashboard","Procurement Dashboard":"Procurement dashboard","Sales Dashboard":"Sales dashboard",
  "Stock Dashboard":"Stock dashboard","Compliance Dashboard":"Compliance dashboard","Oversight Dashboard":"Oversight dashboard","Checklist Matrix":"Monitoring","FPC Journey":"Journey view",
  "My Drafts":"Data entry home","My Profile":"My profile","My Shares":"My shares","My Shareholding":"My shareholding","Dividend and Benefits":"Dividend & benefits",
  "Ledger and Payments":"Ledger & payments","Messages and Support":"Messages & support","Purchase Draft":"Purchase draft","Baseline Survey":"Baseline survey",
  "Adjustments and Transfers":"Adjustments","Units and Godowns":"Godowns","Produce":"Produce Purchase","Profile and Benefits":"Profile",
+ "Surveys & Field Assessments":"Surveys & Field Assessments","Baseline & Impact Reports":"Baseline & Impact Reports",
 };
 const screenForNode=(role:Role,node:NavigationNode|undefined)=>{
  if(!node)return undefined;
@@ -128,7 +132,8 @@ function App() {
  const isTsf=role==="TSF Central Admin";
  const isDirectorsStaff=normalizePath(path)==="/fpc-profile/directors-staff"||activeNode?.id==="directors-staff"||title==="Directors and Staff";
  const isFpcProfile=normalizePath(path)==="/fpc-profile"||activeNode?.id==="company-details"||title==="Company Details"||currentLabel==="FPC profile";
- const isFpcManagementRoute=normalizePath(path).startsWith("/fpc-management")||["FPC onboarding","FPC pending approvals","FPC directory","FPC management","All FPCs","Onboard New FPC","Pending Approvals"].includes(currentLabel);
+ const isFpcManagementRoute=normalizePath(path).startsWith("/fpc-management")||normalizePath(path).startsWith("/tsf/fpc")||["FPC onboarding","FPC pending approvals","FPC directory","FPC management","All FPCs","Onboard New FPC","Pending Approvals","FPC List"].includes(currentLabel);
+ const isServicesRoute=normalizePath(path)==="/agri-business/services"||currentLabel==="Services"||(role!=="Farmer"&&currentLabel==="Input supply"&&normalizePath(path).includes("services"));
  const fpcShortName=state.records.fpcs?.[0]?.name?state.records.fpcs[0].name.replace(/ Farmer Producer Company.*/," FPC"):"Green Valley FPC";
  const exportCompanyProfileCsv=()=>{
   const targetFpc=state.records.fpcs?.find(f=>f.id==="FPC-ODI-001")||state.records.fpcs?.[0];
@@ -350,6 +355,7 @@ function App() {
  const setRole=(next:Role)=>{setState(s=>({...s,role:next}));setPath(firstNavigationRoute(next));setPage(1);setSearch("");setFilter("All");setStaffTab("all");setMenu(false);setToast(`Demo role changed to ${next}`)};
  useEffect(()=>{
   if(!state.role)return;
+  if(isFpcManagementRoute && role !== "TSF Central Admin") return;
   if(activeNavigationNode(role,path))return;
   const oldSlug=slug(normalizePath(path).split("/").pop()||"");
   const nodes=flattenedNavigation(getRoleNavigation(role));
@@ -358,7 +364,7 @@ function App() {
   const oldScreen=navByRole[role].find(label=>slug(label)===oldSlug);
   const matching=oldScreen?nodes.find(node=>slug(screenForNode(role,node)||"")===slug(oldScreen)):undefined;
   setPath(matching?.route||firstNavigationRoute(role));
- },[role,path,state.role,setPath]);
+ },[role,path,state.role,setPath,isFpcManagementRoute]);
  const log=(action:string,module:string,record:string,oldValue?:unknown,newValue?:unknown)=>{
   setState(s=>({...s,audit:[{id:`AUD-${Date.now()}`,actor:user.name,role,action,module,record,oldValue:oldValue?JSON.stringify(oldValue):"",newValue:newValue?JSON.stringify(newValue):"",date:new Date().toLocaleString("en-GB",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})},...s.audit]}));
  };
@@ -582,7 +588,7 @@ function App() {
  salesTotal:state.records.sales.reduce((a,r)=>a+Number(r.amount||0),0),
  stock:state.records.commodities.reduce((a,r)=>a+Number(r.stock||0),0),
  };
- const dashboard=["Overview","Finance dashboard","Procurement dashboard","Sales dashboard","Stock dashboard","Data entry home","Field home","Compliance dashboard","Oversight dashboard","National dashboard","Home"].includes(currentLabel);
+ const dashboard=["Overview","Finance dashboard","Procurement dashboard","Sales dashboard","Stock dashboard","Data entry home","Field home","Compliance dashboard","Oversight dashboard","National dashboard","Network Dashboard","Home"].includes(currentLabel);
    const featureScreen=(screen:string)=>{
     const go=(name:string)=>setPath(routeFor(name));
     if((role==="FPC Admin / Manager"||role==="TSF Central Admin")&&adminScreens.has(screen)){
@@ -593,6 +599,19 @@ function App() {
    };
  const renderDash=()=>{
    if(isMember)return featureScreen(currentLabel);
+   if(isTsf){
+    return (
+     <TsfCentralMonitoring
+      state={state}
+      setState={setState}
+      role={role}
+      screen={normalizePath(path) === "/tsf/analytics" ? "Network Analytics" : currentLabel}
+      path={path}
+      setToast={setToast}
+      go={(dest)=>setPath(routeFor(dest))}
+     />
+    );
+   }
    if(role==="Procurement / Purchase Officer")return featureScreen("Procurement dashboard");
    const kpis=isTsf
     ? [["FPCs onboarded","8","Across Odisha & Jharkhand"],["Active farmers","977","Across all FPCs"],["Shareholders","1,184","Members served"],["Procurement this year","2,486 t","Across 8 FPCs"]]
@@ -669,23 +688,79 @@ function App() {
    );
   }
   if(isFpcManagementRoute){
-   const fpcScreen = normalizePath(path) === "/fpc-management/onboard" ? "FPC onboarding"
-     : normalizePath(path) === "/fpc-management/approvals" ? "FPC pending approvals"
-     : currentLabel === "FPC onboarding" ? "FPC onboarding"
-     : currentLabel === "FPC pending approvals" ? "FPC pending approvals"
-     : "FPC directory";
+   if(role !== "TSF Central Admin"){
+    return (
+     <AccessDenied
+      role={role}
+      attemptedPath={path}
+      onGoHome={()=>setPath(routeFor("Overview"))}
+      onGoProfile={()=>setPath("/fpc-profile")}
+     />
+    );
+   }
+   const norm = normalizePath(path);
+   if (norm === "/fpc-management/onboard" || currentLabel === "FPC onboarding" || currentLabel === "Onboard New FPC") {
+     return (
+       <FpcManagement
+         state={state}
+         setState={setState}
+         role={role}
+         screen="FPC onboarding"
+         setToast={setToast}
+         go={(dest)=>setPath(routeFor(dest))}
+       />
+     );
+   }
+   if (norm === "/fpc-management/approvals" || currentLabel === "FPC pending approvals" || currentLabel === "Pending Approvals") {
+     return (
+       <FpcManagement
+         state={state}
+         setState={setState}
+         role={role}
+         screen="FPC pending approvals"
+         setToast={setToast}
+         go={(dest)=>setPath(routeFor(dest))}
+       />
+     );
+   }
+   const fpcIdFromPath = (pathParts[0] === "tsf" && pathParts[1] === "fpc") ? decodeURIComponent(pathParts[2] || "") : undefined;
    return (
-    <FpcManagement
+     <FpcManagement
+       state={state}
+       setState={setState}
+       role={role}
+       screen="FPC List"
+       setToast={setToast}
+       go={(dest)=>setPath(routeFor(dest))}
+       initialFpcId={fpcIdFromPath}
+     />
+   );
+  }
+  if(isServicesRoute){
+   return (
+    <ServicesModule
      state={state}
      setState={setState}
      role={role}
-     screen={fpcScreen}
      setToast={setToast}
      go={(dest)=>setPath(routeFor(dest))}
     />
    );
   }
-  const dedicated=["FPC onboarding","FPC pending approvals","FPC directory","FPC management","All FPCs","Onboard New FPC","Pending Approvals","Sell produce","Buy inputs","Wallet","Transaction history","FPC rates","Market rates","Market intelligence","Update rates","My sales","Register farmer","Farmers","My farmers","Multi-FPC links","Deleted farmers","Baseline","Baseline survey","Commodity Baseline reports","Register shareholder","Shareholders","Shareholder register","Certificates","My shares","My shareholding","Dividend & benefits","FPC","Meetings","Profile","Company information","Shareholder reports","Reports","Reports & gallery","Consolidated MIS","Input supply","Wallet transactions","Farmer ledger","Buyer ledger","Supplier ledger","Cash book","Bank book","Receipts and payments","Expense register","Income & expenditure","Profit & loss","Analytics","Setup checklist","Journey view","Buyer master","Supplier master","Compliance","Statutory calendar","Filing tracker","Meeting records","Document vault","Audit trail","Sync centre","Finance","Ledger & payments","Purchase entries","Sales entries","Produce Purchase","Input Sale","Produce Sale","Input Purchase","Farmer Settlement","Advances & Dues","Dues","Bank statement upload","Payments and Receipts","Inventory","Stock dashboard","Stock register","Movements","Adjustments","Commodity-wise Inventory Report","Stock Movement Report","Current Stock Position","Stock Valuation Report","Network view","Approvals"];
+  if(isTsf || normalizePath(path).startsWith("/tsf")){
+   return (
+    <TsfCentralMonitoring
+     state={state}
+     setState={setState}
+     role={role}
+     screen={normalizePath(path) === "/tsf/analytics" ? "Network Analytics" : currentLabel}
+     path={path}
+     setToast={setToast}
+     go={(dest)=>setPath(routeFor(dest))}
+    />
+   );
+  }
+  const dedicated=["Services","FPC onboarding","FPC pending approvals","FPC directory","FPC management","All FPCs","Onboard New FPC","Pending Approvals","Sell produce","Buy inputs","Wallet","Transaction history","FPC rates","Market rates","Market intelligence","Update rates","My sales","Register farmer","Farmers","My farmers","Multi-FPC links","Deleted farmers","Baseline","Baseline survey","Commodity Baseline reports","Register shareholder","Shareholders","Shareholder register","Certificates","My shares","My shareholding","Dividend & benefits","FPC","Meetings","Profile","Company information","Shareholder reports","Reports","Reports & gallery","Consolidated MIS","Input supply","Wallet transactions","Farmer ledger","Buyer ledger","Supplier ledger","Cash book","Bank book","Receipts and payments","Expense register","Income & expenditure","Profit & loss","Analytics","Setup checklist","Journey view","Buyer master","Supplier master","Compliance","Statutory calendar","Filing tracker","Meeting records","Document vault","Audit trail","Sync centre","Finance","Ledger & payments","Purchase entries","Sales entries","Produce Purchase","Input Sale","Produce Sale","Input Purchase","Farmer Settlement","Advances & Dues","Dues","Bank statement upload","Payments and Receipts","Inventory","Stock dashboard","Stock register","Movements","Adjustments","Commodity-wise Inventory Report","Stock Movement Report","Current Stock Position","Stock Valuation Report","Network view","Approvals"];
    if(dedicated.includes(currentLabel)){const content=featureScreen(currentLabel);if(content)return content;}
   if(currentLabel==="Approvals")return <ApprovalInbox rows={state.records.purchases.filter(r=>r.status==="Submitted").slice(0,3).concat(state.records.farmers.filter(r=>r.status==="Submitted").slice(0,2),[{id:"ADJ-009",farmer:"Main Godown",commodity:"Arhar stock adjustment",amount:280,status:"Submitted",date:"Today"},{id:"EXP-009",name:"Transport expense",amount:8400,status:"Submitted",date:"Today"}])} onAction={updateStatus}/>;
   if(currentLabel==="Unit converter")return <section className="surface converter"><div><span className="eyebrow">QUANTITY CONVERSION</span><h2>One stock ledger. Every unit.</h2><p>Conversions use the FPC unit master. Weight conversion: kg base.</p><div className="converter-controls"><input type="number" value={quantity} onChange={e=>setQuantity(e.target.value)}/><select value={fromUnit} onChange={e=>setFromUnit(e.target.value)}>{["g","kg","quintal","tonne","bag"].map(u=><option key={u}>{u}</option>)}</select><span>to</span><select value={toUnit} onChange={e=>setToUnit(e.target.value)}>{["g","kg","quintal","tonne","bag"].map(u=><option key={u}>{u}</option>)}</select></div><div className="convert-result">{Number(convert(Number(quantity||0),fromUnit,toUnit).toFixed(2)).toLocaleString("en-IN")} <span>{toUnit}</span></div><p className="helper">1 bag = 50 kg · 1 quintal = 100 kg · 1 tonne = 1,000 kg</p></div></section>;
@@ -1055,7 +1130,7 @@ function App() {
  return <div className={`app-shell ${isTsf?"tsf-shell":""} ${isMember?"member-shell":""}`}>
  <FpcNavigation role={role} currentPath={path} onNavigate={setPath} username={user.name} initials={user.initials} offline={state.offline} onOfflineToggle={()=>setState(s=>({...s,offline:!s.offline}))} badges={{approvals:7}} recordName={recordName} showBreadcrumbs={false}/>
  <main className="main-area"><header className="topbar"><NavigationBreadcrumbs role={role} currentPath={path} onNavigate={setPath} recordName={recordName}/><div className="top-actions"><span className="secure-pill"><ShieldCheck size={14}/> Demo mode</span><select aria-label="Select language" value={language} onChange={e=>{setLanguage(e.target.value);setState(s=>({...s,language:e.target.value}))}}><option>English</option><option>Hindi</option><option>Odia</option></select><button className="top-icon" title="Notifications" onClick={()=>setModal("notifications")}><Bell size={18}/><i/></button><div className="role-menu-wrap"><button className="role-switch" onClick={()=>setMenu(!menu)}><span className="avatar small-avatar">{user.initials}</span><span>{user.name}</span><ChevronDown size={14}/></button>{menu&&<div className="role-menu"><div className="role-menu-label">Switch demo role</div>{roles.map(r=><button key={r} className={role===r?"selected":""} onClick={()=>setRole(r)}><span>{roleUsers[r].initials}</span>{r}</button>)}<button className="sign-out" onClick={()=>{setState(s=>({...s,role:null as any}));setMenu(false)}}>Return to role picker</button></div>}</div></div></header>
- <div className="page-wrap">{!isFpcManagementRoute&&<div className="page-heading"><div><div className="eyebrow">{getActiveNavigationModule(role,path)||(isTsf?"PORTFOLIO VIEW":isMember?"YOUR MEMBERSHIP":"OPERATIONS · FY 2026–27")}</div><h1>{isLicencesPage?"Company Registration & Licences":isFarmerDetail?(farmerRecord?.name||"Farmer Details"):isFarmerEdit?`Edit Farmer · ${farmerRecord?.name||farmerIdFromPath}`:isShareholderDetail?(shareholderRecord?.name||"Shareholder Details"):(labels[language]?.[title]||title)}</h1><p>{isLicencesPage?"View and manage official company registration details, statutory registrations, and compliance documents.":isFarmerDetail?`Profile, KYC, baseline and landholding details for ${farmerRecord?.name||"farmer"} (${farmerIdFromPath}).`:isFarmerEdit?`Update profile and baseline details for ${farmerRecord?.name||"farmer"} (${farmerIdFromPath}). Farmer ID is permanently preserved.`:isShareholderDetail?`Official share allotment, folio, and distinctive number details for ${shareholderRecord?.name||"shareholder"} (${shareholderIdFromPath}).`:isTsf?"A clearer view of delivery across partner FPCs.":isMember?"Your produce, benefits and company updates in one place.":title==="Overview"?"Good morning, Bijay. Here is the picture across your FPC.":`Manage ${title.toLowerCase()} for Green Valley Farmer Producer Company.`}</p></div><div className="heading-right">{role==="Director / Board Member / Auditor"&&<span className="readonly-pill"><ShieldCheck size={14}/> Read-only access</span>}<span className={`network-pill ${state.offline?"network-offline":""}`}><span/>{state.offline?"Offline · queued":"Online"}</span><button className="help-button" onClick={()=>setToast("Help centre · Contact the Green Valley FPC office")}><CircleHelp size={17}/> Help</button></div></div>}{dashboard?renderDash():listView()}</div>
+ <div className="page-wrap">{!isFpcManagementRoute&&!isServicesRoute&&!isTsf&&<div className="page-heading"><div><div className="eyebrow">{getActiveNavigationModule(role,path)||(isTsf?"PORTFOLIO VIEW":isMember?"YOUR MEMBERSHIP":"OPERATIONS · FY 2026–27")}</div><h1>{isLicencesPage?"Company Registration & Licences":isFarmerDetail?(farmerRecord?.name||"Farmer Details"):isFarmerEdit?`Edit Farmer · ${farmerRecord?.name||farmerIdFromPath}`:isShareholderDetail?(shareholderRecord?.name||"Shareholder Details"):(labels[language]?.[title]||title)}</h1><p>{isLicencesPage?"View and manage official company registration details, statutory registrations, and compliance documents.":isFarmerDetail?`Profile, KYC, baseline and landholding details for ${farmerRecord?.name||"farmer"} (${farmerIdFromPath}).`:isFarmerEdit?`Update profile and baseline details for ${farmerRecord?.name||"farmer"} (${farmerIdFromPath}). Farmer ID is permanently preserved.`:isShareholderDetail?`Official share allotment, folio, and distinctive number details for ${shareholderRecord?.name||"shareholder"} (${shareholderIdFromPath}).`:isTsf?"A clearer view of delivery across partner FPCs.":isMember?"Your produce, benefits and company updates in one place.":title==="Overview"?"Good morning, Bijay. Here is the picture across your FPC.":`Manage ${title.toLowerCase()} for Green Valley Farmer Producer Company.`}</p></div><div className="heading-right">{role==="Director / Board Member / Auditor"&&<span className="readonly-pill"><ShieldCheck size={14}/> Read-only access</span>}<span className={`network-pill ${state.offline?"network-offline":""}`}><span/>{state.offline?"Offline · queued":"Online"}</span><button className="help-button" onClick={()=>setToast("Help centre · Contact the Green Valley FPC office")}><CircleHelp size={17}/> Help</button></div></div>}{dashboard?renderDash():listView()}</div>
  <footer className="app-footer"><span>FPC Development Project, supported by Citibank. Implemented with Tata Steel Foundation.</span><span>Prototype · Browser data only</span></footer></main>
   {modal&&<Modal title={modal.startsWith("detail:bank:")?"Bank account details":modal.startsWith("detail:licence:")?"Document details":modal.startsWith("detail:")?`Record details · ${modal.slice(7)}`:modal==="reset"?"Reset demo data":modal==="notifications"?"Notifications":modal==="Add bank account"?"Add bank account":modal==="Edit bank account"?"Edit bank account":modal==="Add licence / document"?"Add licence / document":modal==="Edit licence / document"?"Edit licence / document":modal.toLowerCase().includes("user")&&newRow.role==="Director"?"Add director":modal} onClose={()=>setModal("")}>{modal==="reset"?<div className="modal-content"><p>This restores the original Green Valley demo dataset. Any records created during this session will be removed.</p><button className="btn-danger" onClick={reset}>Reset demo data</button></div>:modal==="notifications"?<div className="notification-list">{state.notifications.map(n=><div key={n.id}><span className="unread-dot"/><span><b>{n.title}</b><small>{n.date}</small></span></div>)}</div>:modal.startsWith("detail:bank:")?<div className="detail-modal" style={{display:"block"}}>{(()=>{const acc=bankAccountItems.find(b=>b.id===modal.slice(12));if(!acc)return <p>Account record not found.</p>;return <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px 18px",width:"100%"}}><div><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Bank Name</small><p style={{fontSize:"13px",fontWeight:600,margin:"4px 0 0",color:"#2c4237"}}>{acc.bankName}</p></div><div><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Status & Primary</small><div style={{display:"flex",gap:"6px",alignItems:"center",marginTop:"4px"}}><Status status={acc.status}/>{acc.isPrimary&&<span className="status-chip green" style={{marginLeft:"6px"}}><i/>Primary</span>}</div></div><div><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Account Holder</small><p style={{fontSize:"11px",margin:"4px 0 0",color:"#34483a"}}>{acc.accountHolderName}</p></div><div><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Account Type</small><p style={{fontSize:"11px",margin:"4px 0 0",color:"#34483a"}}>{acc.accountType}</p></div><div><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Account Number</small><p style={{fontSize:"12px",fontFamily:"monospace",margin:"4px 0 0",color:"#2c4237"}}>{acc.accountNumber}</p></div><div><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>IFSC Code</small><p style={{fontSize:"12px",fontFamily:"monospace",margin:"4px 0 0",color:"#2c4237"}}>{acc.ifscCode}</p></div><div style={{gridColumn:"1/-1"}}><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Branch Name & Address</small><p style={{fontSize:"11px",margin:"4px 0 0",color:"#34483a"}}><b>{acc.branchName}</b>{acc.branchAddress?` · ${acc.branchAddress}`:""}</p></div></div>;})()}<div className="modal-buttons" style={{marginTop:"20px"}}><button className="btn-outline" onClick={()=>setModal("")}>Close</button></div></div>:modal.startsWith("detail:licence:")?<div className="detail-modal" style={{display:"block"}}>{(()=>{const lic=licenceItems.find(l=>l.id===modal.slice(15));if(!lic)return <p>Document record not found.</p>;return <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"14px 18px",width:"100%"}}><div style={{gridColumn:"1/-1"}}><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Document Name</small><p style={{fontSize:"14px",fontWeight:700,margin:"4px 0 0",color:"#223929"}}>{lic.name}</p></div><div><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Category & Status</small><div style={{display:"flex",gap:"6px",alignItems:"center",marginTop:"4px"}}><span className="status-chip slate">{lic.category||"Statutory"}</span><Status status={lic.status}/></div></div><div><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Registration / Licence Number</small><p style={{fontSize:"12px",fontFamily:"monospace",fontWeight:600,margin:"4px 0 0",color:"#223929"}}>{lic.number}</p></div><div><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Issuing Authority</small><p style={{fontSize:"11px",margin:"4px 0 0",color:"#34483a"}}>{lic.authority}</p></div><div><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Issue Date</small><p style={{fontSize:"11px",margin:"4px 0 0",color:"#34483a"}}>{lic.issueDate}</p></div><div><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Validity / Expiry</small><p style={{fontSize:"11px",fontWeight:600,margin:"4px 0 0",color:"#223929"}}>{lic.expiry}</p></div><div style={{gridColumn:"1/-1"}}><small style={{fontSize:"9px",color:"#89958d",textTransform:"uppercase",display:"block"}}>Attached Document File</small><p style={{fontSize:"11px",margin:"4px 0 0",color:"#1b5e20",display:"flex",alignItems:"center",gap:"5px"}}><FileText size={14}/> {lic.documentName||"Not attached"}</p></div></div>;})()}<div className="modal-buttons" style={{marginTop:"20px"}}><button className="btn-outline" onClick={()=>setModal("")}>Close</button><button className="btn-primary" onClick={()=>{setToast("Document certificate downloaded");setModal("");}}><Download size={15}/> Download document</button></div></div>:modal.startsWith("detail:")?<div className="detail-modal"><p>Record information from the local demo workspace.</p><Status status={items.find(x=>x.id===modal.slice(7))?.status||"Approved"}/><button className="btn-outline" onClick={()=>setToast("Record detail copied to clipboard")}>Copy record reference</button></div>:<div className="modal-content"><div className="form-grid">{modal==="Add bank account"||modal==="Edit bank account"?<>
 <label>Bank name *<input required placeholder="e.g. State Bank of India" value={newRow.bankName||""} onChange={e=>setNewRow(v=>({...v,bankName:e.target.value}))}/></label>

@@ -28,6 +28,62 @@ export interface CompanyBankAccount {
   fpcId?: string;
   createdAt?: string;
 }
+
+export interface FpcBaselineIndicator {
+  id: string;
+  name: string;
+  category: "Institutional" | "Financial" | "Agronomic" | "Infrastructure";
+  baselineValue: number;
+  currentValue: number;
+  unit: string;
+  changePercent: number;
+  signOffDate: string;
+  status: "Achieved" | "On Track" | "Needs Attention";
+}
+
+export interface FpcBaselineAssessment {
+  id: string;
+  fpcId: string;
+  fpcName: string;
+  assessmentDate: string;
+  status: "Completed" | "In Progress" | "Pending";
+  assessorName: string;
+  assessorRole: string;
+  signedOffBy: string;
+  remarks: string;
+  indicators: FpcBaselineIndicator[];
+}
+
+export interface FpcSurvey {
+  id: string;
+  fpcId: string;
+  fpcName: string;
+  title: string;
+  category: "Crop Baseline" | "Input Demand" | "Farmer Income" | "Buyer Satisfaction" | "Governance";
+  season: string;
+  targetGroup: "Farmers" | "Shareholders" | "Buyers" | "Board of Directors";
+  targetSample: number;
+  responsesReceived: number;
+  completionRate: number;
+  startDate: string;
+  dueDate: string;
+  status: "Active" | "Completed" | "Draft" | "Closed";
+  leadInvestigator: string;
+}
+
+export interface FpcSurveyResponse {
+  id: string;
+  surveyId: string;
+  fpcId: string;
+  respondentId: string;
+  respondentName: string;
+  respondentVillage: string;
+  submissionDate: string;
+  keyFindings: string;
+  enumeratorName: string;
+  verificationStatus: "Verified" | "Audited" | "Flagged";
+}
+
 export interface OfficialCompanyRegistration {
   companyName: string;
   cin: string;
@@ -107,7 +163,7 @@ export interface SharePurchaseRecord {
 export type State = {
   role: Role | null; memberId: string; language: string; offline: boolean; records: Record<string, RecordRow[]>;
   walletBalances: Record<string, number>; walletTransactions: RecordRow[]; rateHistory: RecordRow[];
-  inputCatalog: RecordRow[]; inputOrders: RecordRow[]; saleRequests: RecordRow[]; certificates: RecordRow[];
+  inputCatalog: RecordRow[]; inputOrders: RecordRow[]; purchaseOrders?: RecordRow[]; saleRequests: RecordRow[]; certificates: RecordRow[];
   audit: RecordRow[]; notifications: RecordRow[]; syncQueue: RecordRow[];
 };
 const fpcId = "FPC-ODI-001";
@@ -218,6 +274,7 @@ const fpclist = [
   district: i === 1 ? "Jajpur" : i === 2 || i === 6 ? "West Singhbhum" : i === 3 ? "Seraikela-Kharsawan" : "Keonjhar",
   block: i === 0 ? "Keonjhar Sadar" : i === 1 ? "Jajpur Sadar" : i === 2 || i === 6 ? "Noamundi" : i === 3 ? "Seraikela" : "Keonjhar Sadar",
   employeeCount: [10, 14, 9, 3, 7, 8, 4, 8][i], directorCount: [6, 9, 7, 5, 7, 6, 6, 8][i],
+  godownCount: [4, 6, 4, 3, 4, 4, 3, 4][i],
   turnover: [7180000, 16240000, 8260000, 0, 3890000, 7430000, 2110000, 5570000][i],
   details: i === 0 ? {
     basic: { legalName: "Green Valley Farmer Producer Company Ltd.", cin: "U01100OD2021PTC035612", pan: "AAACG1234F", tan: "BBNG01234A", gstin: "21AAACG1234F1Z5", logoName: "green-valley-mark.svg", contactEmail: "office@greenvalleyfpc.in", mobile: "9437004412" },
@@ -283,13 +340,39 @@ export interface FpcStoreLocation {
   godownId: string;
   phone: string;
   manager: string;
+  address?: string;
 }
 
 export const fpcStores: FpcStoreLocation[] = [
-  { id: "STR-01", name: "Main FPC Store & Agro Centre (Keonjhar)", code: "GV-STR-MAIN", location: "Village Green Valley, Keonjhar Sadar", godownId: "GOD-01", phone: "+91 9437004412", manager: "Mamata Jena" },
-  { id: "STR-02", name: "Satellite Store & Depot (Pitamahal)", code: "GV-STR-PIT", location: "Pitamahal Market, Telkoi", godownId: "GOD-02", phone: "+91 9437005523", manager: "Suman Naik" },
-  { id: "STR-03", name: "Harichandanpur Agro Input Hub", code: "GV-STR-HAR", location: "Block Chowk, Harichandanpur", godownId: "GOD-01", phone: "+91 9437006634", manager: "Pooja Nayak" }
+  { id: "STR-01", name: "Main FPC Store & Agro Centre (Keonjhar)", code: "GV-STR-MAIN", location: "Village Green Valley, Keonjhar Sadar", godownId: "GOD-01", phone: "+91 9437004412", manager: "Mamata Jena", address: "Plot No. 12, Industrial Estate, Keonjhar Sadar, Keonjhar, Odisha 758001" },
+  { id: "STR-02", name: "Satellite Store & Depot (Pitamahal)", code: "GV-STR-PIT", location: "Pitamahal Market, Telkoi", godownId: "GOD-02", phone: "+91 9437005523", manager: "Suman Naik", address: "Near Gram Panchayat Bhavan, Pitamahal, Telkoi, Keonjhar, Odisha 758019" },
+  { id: "STR-03", name: "Harichandanpur Agro Input Hub", code: "GV-STR-HAR", location: "Block Chowk, Harichandanpur", godownId: "GOD-01", phone: "+91 9437006634", manager: "Pooja Nayak", address: "Block Chowk, Main Market, Harichandanpur, Keonjhar, Odisha 758028" }
 ];
+
+export function amountToWords(amount: number): string {
+  if (!amount || isNaN(amount)) return "Zero Rupees Only";
+  const num = Math.floor(amount);
+  const a = [
+    "", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten",
+    "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"
+  ];
+  const b = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+
+  function inWords(n: number): string {
+    if (n === 0) return "";
+    if (n < 20) return a[n] + " ";
+    if (n < 100) return b[Math.floor(n / 10)] + (n % 10 !== 0 ? " " + a[n % 10] : "") + " ";
+    if (n < 1000) return inWords(Math.floor(n / 100)) + "Hundred " + inWords(n % 100);
+    if (n < 100000) return inWords(Math.floor(n / 1000)) + "Thousand " + inWords(n % 1000);
+    if (n < 10000000) return inWords(Math.floor(n / 100000)) + "Lakh " + inWords(n % 100000);
+    return inWords(Math.floor(n / 10000000)) + "Crore " + inWords(n % 10000000);
+  }
+
+  const words = inWords(num).trim();
+  const paise = Math.round((amount - num) * 100);
+  const paiseWords = paise > 0 ? ` and ${inWords(paise).trim()} Paise` : "";
+  return `Rupees ${words}${paiseWords} Only`;
+}
 
 const inputCatalog = [
   { id: "INP-001", name: "Paddy seed MTU-1010", category: "Seeds", packSize: "Per kg", unit: "kg", rate: 52, stock: 775, lowStock: 50, gst: 0, batch: "MTU-1010-2610", expiry: "30 Jun 2027", supplier: "Utkal Agro Inputs Pvt Ltd" },
@@ -347,11 +430,165 @@ const buyerSeeds: RecordRow[] = [
   { id: "BUY-006", name: "Eastern Grain Cooperative", type: "Government agency", gstin: "21AAEGE3300D1Z6", pan: "AAEGE3300D", contact: "P. Rout", mobile: "9437001006", address: "Jajpur, Odisha", creditLimit: 300000, paymentTerms: 21, status: "Active", openBalance: 0, location: "Jajpur", fpcId },
 ];
 const supplierSeeds: RecordRow[] = [
-  { id: "SUP-001", name: "Utkal Agro Inputs Pvt Ltd", category: "Fertiliser", gstin: "21AABCU1234A1Z5", contact: "Anil Mishra · 06742550001", address: "Bhubaneswar, Odisha", paymentTerms: 30, bankAccount: "XXXXXX7342", status: "Active", openBalance: 0, location: "Bhubaneswar", fpcId },
-  { id: "SUP-002", name: "Kalinga Seed Corporation", category: "Seed", gstin: "21AAACK2200B1Z4", contact: "S. Pradhan · 9437002002", address: "Cuttack, Odisha", paymentTerms: 30, bankAccount: "XXXXXX1208", status: "Active", openBalance: 18500, location: "Cuttack", fpcId },
-  { id: "SUP-003", name: "GreenShield Crop Care", category: "Pesticide", gstin: "21AAACG3300C1Z3", contact: "M. Sahu · 9437002003", address: "Balasore, Odisha", paymentTerms: 15, bankAccount: "XXXXXX4391", status: "Active", openBalance: 0, location: "Balasore", fpcId },
-  { id: "SUP-004", name: "Eastern Farm Equipment", category: "Equipment", gstin: "21AAEET4400D1Z2", contact: "P. Das · 9437002004", address: "Keonjhar, Odisha", paymentTerms: 45, bankAccount: "XXXXXX8620", status: "Active", openBalance: 0, location: "Keonjhar", fpcId },
-  { id: "SUP-005", name: "Odisha Farmers Seed Works", category: "Seed", gstin: "21AAOFS5500E1Z1", contact: "L. Behera · 9437002005", address: "Jajpur, Odisha", paymentTerms: 30, bankAccount: "XXXXXX3326", status: "Active", openBalance: 0, location: "Jajpur", fpcId },
+  { id: "SUP-001", name: "Utkal Agro Inputs Pvt Ltd", category: "Fertiliser", gstin: "21AABCU1234A1Z5", contact: "Anil Mishra · 06742550001", contactPerson: "Anil Mishra", mobile: "06742550001", address: "Plot 44, Rasulgarh Industrial Area, Bhubaneswar, Odisha", paymentTerms: 30, bankAccount: "XXXXXX7342", status: "Active", openBalance: 0, location: "Bhubaneswar", fpcId },
+  { id: "SUP-002", name: "Kalinga Seed Corporation", category: "Seed", gstin: "21AAACK2200B1Z4", contact: "S. Pradhan · 9437002002", contactPerson: "S. Pradhan", mobile: "9437002002", address: "Station Road, Malgodown, Cuttack, Odisha", paymentTerms: 30, bankAccount: "XXXXXX1208", status: "Active", openBalance: 18500, location: "Cuttack", fpcId },
+  { id: "SUP-003", name: "GreenShield Crop Care", category: "Pesticide", gstin: "21AAACG3300C1Z3", contact: "M. Sahu · 9437002003", contactPerson: "M. Sahu", mobile: "9437002003", address: "OT Road, Industrial Area, Balasore, Odisha", paymentTerms: 15, bankAccount: "XXXXXX4391", status: "Active", openBalance: 0, location: "Balasore", fpcId },
+  { id: "SUP-004", name: "Eastern Farm Equipment", category: "Equipment", gstin: "21AAEET4400D1Z2", contact: "P. Das · 9437002004", contactPerson: "P. Das", mobile: "9437002004", address: "Mining Road, Keonjhar, Odisha", paymentTerms: 45, bankAccount: "XXXXXX8620", status: "Active", openBalance: 0, location: "Keonjhar", fpcId },
+  { id: "SUP-005", name: "Odisha Farmers Seed Works", category: "Seed", gstin: "21AAOFS5500E1Z1", contact: "L. Behera · 9437002005", contactPerson: "L. Behera", mobile: "9437002005", address: "Jajpur Road, Jajpur, Odisha", paymentTerms: 30, bankAccount: "XXXXXX3326", status: "Active", openBalance: 0, location: "Jajpur", fpcId },
+];
+
+export const samplePurchaseOrders: RecordRow[] = [
+  {
+    id: "PO-2026-0001",
+    poNumber: "PO-2026-0001",
+    orderDate: "15 Oct 2026",
+    supplierId: "SUP-001",
+    supplierName: "Utkal Agro Inputs Pvt Ltd",
+    supplier: {
+      id: "SUP-001",
+      name: "Utkal Agro Inputs Pvt Ltd",
+      category: "Fertiliser",
+      gstin: "21AABCU1234A1Z5",
+      contactPerson: "Anil Mishra",
+      mobile: "06742550001",
+      address: "Plot 44, Rasulgarh Industrial Area, Bhubaneswar, Odisha",
+      paymentTerms: 30
+    },
+    storeId: "STR-01",
+    storeName: "Main FPC Store & Agro Centre (Keonjhar)",
+    deliveryStore: {
+      id: "STR-01",
+      name: "Main FPC Store & Agro Centre (Keonjhar)",
+      code: "GV-STR-MAIN",
+      location: "Village Green Valley, Keonjhar Sadar",
+      address: "Plot No. 12, Industrial Estate, Keonjhar Sadar, Keonjhar, Odisha 758001",
+      manager: "Mamata Jena",
+      phone: "+91 9437004412"
+    },
+    items: [
+      { id: "INP-002", name: "DAP fertiliser", category: "Fertiliser", packSize: "50 kg bag", unit: "bag", rate: 1350, quantity: 50, receivedQuantity: 50, gst: 5, gstAmount: 3375, amount: 70875 },
+      { id: "INP-003", name: "Urea", category: "Fertiliser", packSize: "45 kg bag", unit: "bag", rate: 266.5, quantity: 40, receivedQuantity: 40, gst: 5, gstAmount: 533, amount: 11193 }
+    ],
+    subtotal: 78160,
+    gstTotal: 3908,
+    totalAmount: 82068,
+    expectedDeliveryDate: "2026-10-22",
+    expectedDelivery: "22 Oct 2026",
+    remarks: "Bulk pre-season procurement for Kharif distribution",
+    status: "Received",
+    receipts: [
+      {
+        id: "GRN-2026-0001",
+        receivedDate: "21 Oct 2026",
+        challanNumber: "DC-94812",
+        receivedBy: "Sanjay Tudu",
+        notes: "All bags inspected and stacked in Bay A2. Packaging intact.",
+        items: [
+          { id: "INP-002", name: "DAP fertiliser", quantityReceived: 50, unit: "bag" },
+          { id: "INP-003", name: "Urea", quantityReceived: 40, unit: "bag" }
+        ]
+      }
+    ],
+    createdBy: "Prakash Rout",
+    createdAt: "15 Oct 2026 · 10:30",
+    fpcId
+  },
+  {
+    id: "PO-2026-0002",
+    poNumber: "PO-2026-0002",
+    orderDate: "20 Oct 2026",
+    supplierId: "SUP-002",
+    supplierName: "Kalinga Seed Corporation",
+    supplier: {
+      id: "SUP-002",
+      name: "Kalinga Seed Corporation",
+      category: "Seed",
+      gstin: "21AAACK2200B1Z4",
+      contactPerson: "S. Pradhan",
+      mobile: "9437002002",
+      address: "Station Road, Malgodown, Cuttack, Odisha",
+      paymentTerms: 30
+    },
+    storeId: "STR-02",
+    storeName: "Satellite Store & Depot (Pitamahal)",
+    deliveryStore: {
+      id: "STR-02",
+      name: "Satellite Store & Depot (Pitamahal)",
+      code: "GV-STR-PIT",
+      location: "Pitamahal Market, Telkoi",
+      address: "Near Gram Panchayat Bhavan, Pitamahal, Telkoi, Keonjhar, Odisha 758019",
+      manager: "Suman Naik",
+      phone: "+91 9437005523"
+    },
+    items: [
+      { id: "INP-001", name: "Paddy seed MTU-1010", category: "Seeds", packSize: "Per kg", unit: "kg", rate: 52, quantity: 200, receivedQuantity: 100, gst: 0, gstAmount: 0, amount: 10400 },
+      { id: "INP-006", name: "Maize hybrid seed", category: "Seeds", packSize: "Per kg", unit: "kg", rate: 310, quantity: 50, receivedQuantity: 0, gst: 0, gstAmount: 0, amount: 15500 }
+    ],
+    subtotal: 25900,
+    gstTotal: 0,
+    totalAmount: 25900,
+    expectedDeliveryDate: "2026-10-28",
+    expectedDelivery: "28 Oct 2026",
+    remarks: "Certified foundation seeds with lot inspection certificates",
+    status: "Partially Received",
+    receipts: [
+      {
+        id: "GRN-2026-0002",
+        receivedDate: "26 Oct 2026",
+        challanNumber: "KAL-7714",
+        receivedBy: "Suman Naik",
+        notes: "Part shipment of 100 kg Paddy seed received; remaining seeds in transit.",
+        items: [
+          { id: "INP-001", name: "Paddy seed MTU-1010", quantityReceived: 100, unit: "kg" }
+        ]
+      }
+    ],
+    createdBy: "Prakash Rout",
+    createdAt: "20 Oct 2026 · 11:15",
+    fpcId
+  },
+  {
+    id: "PO-2026-0003",
+    poNumber: "PO-2026-0003",
+    orderDate: "28 Oct 2026",
+    supplierId: "SUP-003",
+    supplierName: "GreenShield Crop Care",
+    supplier: {
+      id: "SUP-003",
+      name: "GreenShield Crop Care",
+      category: "Pesticide",
+      gstin: "21AAACG3300C1Z3",
+      contactPerson: "M. Sahu",
+      mobile: "9437002003",
+      address: "OT Road, Industrial Area, Balasore, Odisha",
+      paymentTerms: 15
+    },
+    storeId: "STR-01",
+    storeName: "Main FPC Store & Agro Centre (Keonjhar)",
+    deliveryStore: {
+      id: "STR-01",
+      name: "Main FPC Store & Agro Centre (Keonjhar)",
+      code: "GV-STR-MAIN",
+      location: "Village Green Valley, Keonjhar Sadar",
+      address: "Plot No. 12, Industrial Estate, Keonjhar Sadar, Keonjhar, Odisha 758001",
+      manager: "Mamata Jena",
+      phone: "+91 9437004412"
+    },
+    items: [
+      { id: "INP-005", name: "Neem pesticide", category: "Pesticide", packSize: "1 litre", unit: "litre", rate: 420, quantity: 60, receivedQuantity: 0, gst: 18, gstAmount: 4536, amount: 29736 }
+    ],
+    subtotal: 25200,
+    gstTotal: 4536,
+    totalAmount: 29736,
+    expectedDeliveryDate: "2026-11-05",
+    expectedDelivery: "05 Nov 2026",
+    remarks: "Direct supply from manufacturer batch NP-2409",
+    status: "Pending Delivery",
+    receipts: [],
+    createdBy: "Prakash Rout",
+    createdAt: "28 Oct 2026 · 15:40",
+    fpcId
+  }
 ];
 const dividendRuns: RecordRow[] = [
   { id: "DIV-RUN-2026-001", name: "FY 2025–26 dividend · 5%", period: "FY 2025–26", rate: 5, status: "Submitted", submittedBy: "Anita Das", submittedAt: "26 Oct 2026 · 10:15", patronageBonus: 1200, note: "Dividend is not guaranteed; declared by the general meeting", breakdown: [{ member: "Ravi Kumar", memberId: "SH-001", capital: 1000, rate: 5, amount: 50 }, { member: "Sita Devi", memberId: "SH-002", capital: 2500, rate: 5, amount: 125 }, { member: "Lalita Behera", memberId: "SH-003", capital: 500, rate: 5, amount: 25 }], totalPayout: 200, fpcId },
@@ -427,9 +664,392 @@ export const initialBankAccounts: CompanyBankAccount[] = [
     createdAt: "14 Jun 2021",
   },
 ];
+
+export const initialBaselineAssessments: FpcBaselineAssessment[] = [
+  {
+    id: "BL-ASM-001",
+    fpcId: "FPC-ODI-001",
+    fpcName: "Green Valley Farmer Producer Company Ltd.",
+    assessmentDate: "14 Jun 2021",
+    status: "Completed",
+    assessorName: "TSF Agri Monitoring Division",
+    assessorRole: "Lead M&E Specialist",
+    signedOffBy: "Dr. R. K. Mohapatra (TSF Portfolio Lead)",
+    remarks: "Baseline assessment completed during company incorporation and operational kickoff. Key benchmarks verified with field surveys and DAO records.",
+    indicators: [
+      { id: "IND-01", name: "Registered Farmer Member Base", category: "Institutional", baselineValue: 250, currentValue: 1240, unit: "Producers", changePercent: 396, signOffDate: "14 Jun 2021", status: "Achieved" },
+      { id: "IND-02", name: "Annual Audited Turnover", category: "Financial", baselineValue: 1850000, currentValue: 7180000, unit: "₹", changePercent: 288, signOffDate: "14 Jun 2021", status: "Achieved" },
+      { id: "IND-03", name: "Commercial Institutional Buyers", category: "Institutional", baselineValue: 1, currentValue: 4, unit: "Off-takers", changePercent: 300, signOffDate: "14 Jun 2021", status: "Achieved" },
+      { id: "IND-04", name: "Aggregated Storage Capacity", category: "Infrastructure", baselineValue: 120, currentValue: 800, unit: "MT", changePercent: 566, signOffDate: "14 Jun 2021", status: "Achieved" },
+      { id: "IND-05", name: "Average Paddy Yield per Acre", category: "Agronomic", baselineValue: 14.2, currentValue: 19.4, unit: "Qtl/Acre", changePercent: 36.6, signOffDate: "14 Jun 2021", status: "Achieved" },
+      { id: "IND-06", name: "Paid-up Member Share Capital", category: "Financial", baselineValue: 125000, currentValue: 620000, unit: "₹", changePercent: 396, signOffDate: "14 Jun 2021", status: "Achieved" }
+    ]
+  },
+  {
+    id: "BL-ASM-002",
+    fpcId: "FPC-ODI-002",
+    fpcName: "Kalinganagar Agri Producers Co.",
+    assessmentDate: "10 Jan 2022",
+    status: "Completed",
+    assessorName: "TSF Industrial Corridor Team",
+    assessorRole: "Enterprise Development Officer",
+    signedOffBy: "P. K. Das (Regional Manager)",
+    remarks: "Baseline for large-scale aggregation model. Heavy procurement link with commercial starch & feed industries.",
+    indicators: [
+      { id: "IND-01", name: "Registered Farmer Member Base", category: "Institutional", baselineValue: 400, currentValue: 2140, unit: "Producers", changePercent: 435, signOffDate: "10 Jan 2022", status: "Achieved" },
+      { id: "IND-02", name: "Annual Audited Turnover", category: "Financial", baselineValue: 4200000, currentValue: 16240000, unit: "₹", changePercent: 286, signOffDate: "10 Jan 2022", status: "Achieved" },
+      { id: "IND-03", name: "Commercial Institutional Buyers", category: "Institutional", baselineValue: 2, currentValue: 6, unit: "Off-takers", changePercent: 200, signOffDate: "10 Jan 2022", status: "Achieved" },
+      { id: "IND-04", name: "Aggregated Storage Capacity", category: "Infrastructure", baselineValue: 300, currentValue: 1200, unit: "MT", changePercent: 300, signOffDate: "10 Jan 2022", status: "Achieved" },
+      { id: "IND-05", name: "Maize Crop Yield per Acre", category: "Agronomic", baselineValue: 18.5, currentValue: 24.8, unit: "Qtl/Acre", changePercent: 34.1, signOffDate: "10 Jan 2022", status: "Achieved" }
+    ]
+  },
+  {
+    id: "BL-ASM-003",
+    fpcId: "FPC-JHK-001",
+    fpcName: "Noamundi Millet Growers FPC",
+    assessmentDate: "15 Mar 2022",
+    status: "Completed",
+    assessorName: "TSF Jharkhand Tribal Livelihoods Unit",
+    assessorRole: "M&E Coordinator",
+    signedOffBy: "S. Soren (State Program Director)",
+    remarks: "Focused on minor millets, ragi, and organic pulse preservation in tribal mining-adjacent blocks.",
+    indicators: [
+      { id: "IND-01", name: "Registered Farmer Member Base", category: "Institutional", baselineValue: 300, currentValue: 1560, unit: "Producers", changePercent: 420, signOffDate: "15 Mar 2022", status: "Achieved" },
+      { id: "IND-02", name: "Annual Audited Turnover", category: "Financial", baselineValue: 2500000, currentValue: 8260000, unit: "₹", changePercent: 230, signOffDate: "15 Mar 2022", status: "Achieved" },
+      { id: "IND-03", name: "Millet Aggregation Volume", category: "Agronomic", baselineValue: 80, currentValue: 420, unit: "MT", changePercent: 425, signOffDate: "15 Mar 2022", status: "Achieved" }
+    ]
+  },
+  {
+    id: "BL-ASM-004",
+    fpcId: "FPC-JHK-002",
+    fpcName: "Seraikela Vegetable Growers FPC",
+    assessmentDate: "20 Oct 2026",
+    status: "In Progress",
+    assessorName: "TSF Onboarding Assessment Team",
+    assessorRole: "Field Survey Officer",
+    signedOffBy: "Pending Regional Verification",
+    remarks: "Onboarding assessment currently underway. 3 gram panchayats surveyed out of 7 planned.",
+    indicators: [
+      { id: "IND-01", name: "Mobilized Farmers", category: "Institutional", baselineValue: 88, currentValue: 88, unit: "Producers", changePercent: 0, signOffDate: "20 Oct 2026", status: "On Track" },
+      { id: "IND-02", name: "Initial Aggregated Acreage", category: "Agronomic", baselineValue: 95, currentValue: 95, unit: "Acres", changePercent: 0, signOffDate: "20 Oct 2026", status: "On Track" }
+    ]
+  },
+  {
+    id: "BL-ASM-005",
+    fpcId: "FPC-ODI-003",
+    fpcName: "Gonda Tribal Farmers FPC",
+    assessmentDate: "05 Nov 2022",
+    status: "Completed",
+    assessorName: "TSF Keonjhar District Team",
+    assessorRole: "Monitoring Officer",
+    signedOffBy: "Dr. R. K. Mohapatra",
+    remarks: "Focus on organic turmeric, ginger, and wild honey collection. High forest fringe community participation.",
+    indicators: [
+      { id: "IND-01", name: "Registered Farmer Member Base", category: "Institutional", baselineValue: 220, currentValue: 1320, unit: "Producers", changePercent: 500, signOffDate: "05 Nov 2022", status: "Achieved" },
+      { id: "IND-02", name: "Annual Turnover", category: "Financial", baselineValue: 1200000, currentValue: 3890000, unit: "₹", changePercent: 224, signOffDate: "05 Nov 2022", status: "Achieved" }
+    ]
+  },
+  {
+    id: "BL-ASM-006",
+    fpcId: "FPC-ODI-004",
+    fpcName: "Joda Pulse Producers FPC",
+    assessmentDate: "12 Jul 2022",
+    status: "Completed",
+    assessorName: "TSF Northern Odisha Desk",
+    assessorRole: "Field M&E Officer",
+    signedOffBy: "P. K. Das",
+    remarks: "Established baseline for arhar, moong and gram production along with village minikit demonstrations.",
+    indicators: [
+      { id: "IND-01", name: "Registered Farmer Member Base", category: "Institutional", baselineValue: 180, currentValue: 970, unit: "Producers", changePercent: 438, signOffDate: "12 Jul 2022", status: "Achieved" },
+      { id: "IND-02", name: "Annual Turnover", category: "Financial", baselineValue: 2100000, currentValue: 7430000, unit: "₹", changePercent: 253, signOffDate: "12 Jul 2022", status: "Achieved" }
+    ]
+  },
+  {
+    id: "BL-ASM-007",
+    fpcId: "FPC-JHK-003",
+    fpcName: "Chaibasa Organic FPC",
+    assessmentDate: "18 Feb 2023",
+    status: "Completed",
+    assessorName: "TSF South Chotanagpur Cell",
+    assessorRole: "M&E Specialist",
+    signedOffBy: "S. Soren",
+    remarks: "Baseline completed. Company facing working capital constraints requiring portfolio stabilization.",
+    indicators: [
+      { id: "IND-01", name: "Registered Farmer Member Base", category: "Institutional", baselineValue: 150, currentValue: 710, unit: "Producers", changePercent: 373, signOffDate: "18 Feb 2023", status: "Needs Attention" },
+      { id: "IND-02", name: "Annual Turnover", category: "Financial", baselineValue: 1400000, currentValue: 2110000, unit: "₹", changePercent: 50.7, signOffDate: "18 Feb 2023", status: "Needs Attention" }
+    ]
+  },
+  {
+    id: "BL-ASM-008",
+    fpcId: "FPC-ODI-005",
+    fpcName: "Barbil Oilseed Growers FPC",
+    assessmentDate: "22 Sep 2022",
+    status: "Completed",
+    assessorName: "TSF Mining Peripheral Ag Hub",
+    assessorRole: "Senior Livelihood Specialist",
+    signedOffBy: "Dr. R. K. Mohapatra",
+    remarks: "Baseline established for mustard, groundnut and sunflower aggregation with custom processing yard.",
+    indicators: [
+      { id: "IND-01", name: "Registered Farmer Member Base", category: "Institutional", baselineValue: 210, currentValue: 1190, unit: "Producers", changePercent: 466, signOffDate: "22 Sep 2022", status: "Achieved" },
+      { id: "IND-02", name: "Annual Turnover", category: "Financial", baselineValue: 1950000, currentValue: 5570000, unit: "₹", changePercent: 185, signOffDate: "22 Sep 2022", status: "Achieved" },
+      { id: "IND-03", name: "Oilseed Production Volume", category: "Agronomic", baselineValue: 65, currentValue: 240, unit: "MT", changePercent: 269, signOffDate: "22 Sep 2022", status: "Achieved" }
+    ]
+  }
+];
+
+export const initialSurveys: FpcSurvey[] = [
+  {
+    id: "SRV-2026-001",
+    fpcId: "FPC-ODI-001",
+    fpcName: "Green Valley Farmer Producer Company Ltd.",
+    title: "Kharif 2026 Crop Sowing & Input Demand Survey",
+    category: "Crop Baseline",
+    season: "Kharif 2026",
+    targetGroup: "Farmers",
+    targetSample: 120,
+    responsesReceived: 98,
+    completionRate: 81.6,
+    startDate: "01 Jun 2026",
+    dueDate: "15 Jul 2026",
+    status: "Active",
+    leadInvestigator: "Suman Naik (Field Mobilizer)"
+  },
+  {
+    id: "SRV-2025-002",
+    fpcId: "FPC-ODI-001",
+    fpcName: "Green Valley Farmer Producer Company Ltd.",
+    title: "Annual Member Income & Household Baseline Audit",
+    category: "Farmer Income",
+    season: "Annual FY 2025–26",
+    targetGroup: "Farmers",
+    targetSample: 100,
+    responsesReceived: 100,
+    completionRate: 100.0,
+    startDate: "10 Feb 2026",
+    dueDate: "25 Mar 2026",
+    status: "Completed",
+    leadInvestigator: "Anita Das (Accountant & MIS)"
+  },
+  {
+    id: "SRV-2026-003",
+    fpcId: "FPC-ODI-001",
+    fpcName: "Green Valley Farmer Producer Company Ltd.",
+    title: "Commercial Off-Taker Produce Quality & Fulfillment Audit",
+    category: "Buyer Satisfaction",
+    season: "FY 2026–27 Q2",
+    targetGroup: "Buyers",
+    targetSample: 4,
+    responsesReceived: 4,
+    completionRate: 100.0,
+    startDate: "01 Sep 2026",
+    dueDate: "30 Sep 2026",
+    status: "Completed",
+    leadInvestigator: "Mamata Jena (Sales Officer)"
+  },
+  {
+    id: "SRV-2026-004",
+    fpcId: "FPC-ODI-002",
+    fpcName: "Kalinganagar Agri Producers Co.",
+    title: "Industrial Grain Aggregation & Moisture Assessment Survey",
+    category: "Crop Baseline",
+    season: "Kharif 2026",
+    targetGroup: "Farmers",
+    targetSample: 150,
+    responsesReceived: 112,
+    completionRate: 74.6,
+    startDate: "15 Jun 2026",
+    dueDate: "30 Jul 2026",
+    status: "Active",
+    leadInvestigator: "D. Mohapatra (Field Supervisor)"
+  },
+  {
+    id: "SRV-2026-005",
+    fpcId: "FPC-JHK-001",
+    fpcName: "Noamundi Millet Growers FPC",
+    title: "Tribal Millet Acreage & Indigenous Seed Preservation Survey",
+    category: "Crop Baseline",
+    season: "Kharif 2026",
+    targetGroup: "Farmers",
+    targetSample: 80,
+    responsesReceived: 70,
+    completionRate: 87.5,
+    startDate: "05 Jun 2026",
+    dueDate: "20 Jul 2026",
+    status: "Active",
+    leadInvestigator: "R. Soren (Community Facilitator)"
+  },
+  {
+    id: "SRV-2026-006",
+    fpcId: "FPC-JHK-002",
+    fpcName: "Seraikela Vegetable Growers FPC",
+    title: "Vegetable Cluster Production Baseline & Cold Chain Demand",
+    category: "Input Demand",
+    season: "Kharif 2026",
+    targetGroup: "Farmers",
+    targetSample: 60,
+    responsesReceived: 25,
+    completionRate: 41.7,
+    startDate: "01 Oct 2026",
+    dueDate: "15 Nov 2026",
+    status: "Active",
+    leadInvestigator: "K. Mardi (Field Staff)"
+  },
+  {
+    id: "SRV-2026-007",
+    fpcId: "FPC-ODI-003",
+    fpcName: "Gonda Tribal Farmers FPC",
+    title: "Organic Turmeric & Ginger Field Yield Baseline",
+    category: "Crop Baseline",
+    season: "Annual FY 2025–26",
+    targetGroup: "Farmers",
+    targetSample: 50,
+    responsesReceived: 50,
+    completionRate: 100.0,
+    startDate: "15 Jan 2026",
+    dueDate: "28 Feb 2026",
+    status: "Completed",
+    leadInvestigator: "P. Nayak (Livelihood Lead)"
+  },
+  {
+    id: "SRV-2026-008",
+    fpcId: "FPC-ODI-004",
+    fpcName: "Joda Pulse Producers FPC",
+    title: "Pulse Intercropping & Certified Seed Replacement Survey",
+    category: "Input Demand",
+    season: "Kharif 2026",
+    targetGroup: "Farmers",
+    targetSample: 90,
+    responsesReceived: 58,
+    completionRate: 64.4,
+    startDate: "20 Jun 2026",
+    dueDate: "10 Aug 2026",
+    status: "Active",
+    leadInvestigator: "S. Patra (Agronomist)"
+  },
+  {
+    id: "SRV-2026-009",
+    fpcId: "FPC-JHK-003",
+    fpcName: "Chaibasa Organic FPC",
+    title: "Market Access & Farmer Remuneration Survey",
+    category: "Farmer Income",
+    season: "FY 2025–26",
+    targetGroup: "Farmers",
+    targetSample: 45,
+    responsesReceived: 38,
+    completionRate: 84.4,
+    startDate: "01 Nov 2025",
+    dueDate: "15 Dec 2025",
+    status: "Closed",
+    leadInvestigator: "B. Hansda (M&E Staff)"
+  },
+  {
+    id: "SRV-2026-010",
+    fpcId: "FPC-ODI-005",
+    fpcName: "Barbil Oilseed Growers FPC",
+    title: "Mustard & Sunflower Crop Cutting Estimate Survey",
+    category: "Crop Baseline",
+    season: "Kharif 2026",
+    targetGroup: "Farmers",
+    targetSample: 85,
+    responsesReceived: 61,
+    completionRate: 71.8,
+    startDate: "10 Jun 2026",
+    dueDate: "25 Jul 2026",
+    status: "Active",
+    leadInvestigator: "J. Murmu (Field Officer)"
+  }
+];
+
+export const initialSurveyResponses: FpcSurveyResponse[] = [
+  {
+    id: "RSP-001",
+    surveyId: "SRV-2026-001",
+    fpcId: "FPC-ODI-001",
+    respondentId: "F-001",
+    respondentName: "Ravi Kumar",
+    respondentVillage: "Green Valley",
+    submissionDate: "12 Jun 2026",
+    keyFindings: "Sown Paddy (Swarna) on 2.1 acres. Requires 2 bags DAP and 3 bags Urea. Expected market surplus 32 Quintals.",
+    enumeratorName: "Suman Naik",
+    verificationStatus: "Verified"
+  },
+  {
+    id: "RSP-002",
+    surveyId: "SRV-2026-001",
+    fpcId: "FPC-ODI-001",
+    respondentId: "F-002",
+    respondentName: "Sita Devi",
+    respondentVillage: "Pitamahal",
+    submissionDate: "14 Jun 2026",
+    keyFindings: "Cultivating Hybrid Maize on 1.4 acres. Organic bio-fertilizer required. Expected harvest 22 Quintals.",
+    enumeratorName: "Suman Naik",
+    verificationStatus: "Verified"
+  },
+  {
+    id: "RSP-003",
+    surveyId: "SRV-2026-001",
+    fpcId: "FPC-ODI-001",
+    respondentId: "F-003",
+    respondentName: "Ganesh Mahato",
+    respondentVillage: "Telkoi",
+    submissionDate: "16 Jun 2026",
+    keyFindings: "Sown Arhar (Pigeon Pea) on 1.8 acres. Requested bio-pesticide spray schedule. Expected surplus 16 Quintals.",
+    enumeratorName: "Suman Naik",
+    verificationStatus: "Audited"
+  },
+  {
+    id: "RSP-004",
+    surveyId: "SRV-2026-001",
+    fpcId: "FPC-ODI-001",
+    respondentId: "F-004",
+    respondentName: "Budhram Soren",
+    respondentVillage: "Harichandanpur",
+    submissionDate: "18 Jun 2026",
+    keyFindings: "Paddy crop on 2.5 acres. Uses solar pump irrigation. Estimated surplus 38 Quintals.",
+    enumeratorName: "Suman Naik",
+    verificationStatus: "Verified"
+  },
+  {
+    id: "RSP-005",
+    surveyId: "SRV-2026-003",
+    fpcId: "FPC-ODI-001",
+    respondentId: "BYR-001",
+    respondentName: "Shree Balaji Rice Mills (Mr. A. K. Agarwal)",
+    respondentVillage: "Cuttack Central Mandi",
+    submissionDate: "15 Sep 2026",
+    keyFindings: "Grading and moisture retention standards met. 100% on-time delivery for 10 MT lot. Recommended digital weighment slips.",
+    enumeratorName: "Mamata Jena",
+    verificationStatus: "Verified"
+  },
+  {
+    id: "RSP-006",
+    surveyId: "SRV-2026-003",
+    fpcId: "FPC-ODI-001",
+    respondentId: "BYR-002",
+    respondentName: "Odisha State Civil Supplies Corp (OSCSC)",
+    respondentVillage: "Bhubaneswar",
+    submissionDate: "20 Sep 2026",
+    keyFindings: "MSP procurement criteria fully compliant. Certified quality certificates attached with all vouchers.",
+    enumeratorName: "Mamata Jena",
+    verificationStatus: "Verified"
+  },
+  {
+    id: "RSP-007",
+    surveyId: "SRV-2026-010",
+    fpcId: "FPC-ODI-005",
+    respondentId: "F-005-001",
+    respondentName: "Jaba Murmu",
+    respondentVillage: "Barbil Rural",
+    submissionDate: "15 Jun 2026",
+    keyFindings: "Sunflower and mustard on 1.6 acres. Requires cold-press milling aggregation service. Expected yield 18 Qtl.",
+    enumeratorName: "J. Murmu",
+    verificationStatus: "Verified"
+  }
+];
+
 const seed: State = {
   role: null, memberId: "F-001", language: "English", offline: false,
-  walletBalances: { "F-001": 10000, "F-002": 7000 }, walletTransactions, rateHistory, inputCatalog, inputOrders, saleRequests, certificates,
+  walletBalances: { "F-001": 10000, "F-002": 7000 }, walletTransactions, rateHistory, inputCatalog, inputOrders, purchaseOrders: samplePurchaseOrders, saleRequests, certificates,
   records: {
     farmers, shareholders, sharePurchases: initialSharePurchases as unknown as RecordRow[],
     purchases, sales,
@@ -454,7 +1074,7 @@ const seed: State = {
       { id: "USR-008", name: "Suman Naik", role: "Field Staff", mobile: "90XXXX8845", status: "Active", lastLogin: "Today · 08:15", fpcId },
       { id: "USR-009", name: "Dr. Ashok Panda", role: "Director / Board Member / Auditor", mobile: "98XXXX1002", status: "Active", lastLogin: "12 Oct 2026", fpcId },
     ],
-    godowns: [{ id: "GOD-01", name: "Main Godown Keonjhar", capacity: "500 tonne", used: 61, location: "Keonjhar" }, { id: "GOD-02", name: "Satellite Godown Pitamahal", capacity: "120 tonne", used: 38, location: "Pitamahal" }],
+    godowns: [{ id: "GOD-01", name: "Main Godown Keonjhar", capacity: "500 tonne", used: 61, location: "Keonjhar", address: "Plot No. 12, Industrial Estate, Keonjhar Sadar, Keonjhar, Odisha 758001", manager: "Sanjay Tudu", phone: "+91 9437004412" }, { id: "GOD-02", name: "Satellite Godown Pitamahal", capacity: "120 tonne", used: 38, location: "Pitamahal", address: "Near Gram Panchayat Bhavan, Pitamahal, Telkoi, Keonjhar, Odisha 758019", manager: "Suman Naik", phone: "+91 9437005523" }],
     filings: [{ id: "FIL-01", name: "AGM", due: "30 Sep 2026", status: "Filed · 21 Sep 2026", adminStatus: "Approved", filedBy: "Rakesh Hembram" }, { id: "FIL-02", name: "Form AOC-4", due: "20 Oct 2026", status: "Filed", adminStatus: "Pending review", filedBy: "Rakesh Hembram" }, { id: "FIL-03", name: "Form MGT-7A", due: "20 Nov 2026", status: "Due soon", filedBy: "" }, { id: "FIL-04", name: "Income tax return ITR-6", due: "31 Oct 2026", status: "Due soon", filedBy: "" }, { id: "FIL-05", name: "GST GSTR-3B · September", due: "20 Oct 2026", status: "Overdue", filedBy: "" }, { id: "FIL-06", name: "Statutory audit report", due: "15 Dec 2026", status: "Pending", filedBy: "" }],
     fpcs: fpclist,
     expenses: [{ id: "EXP-01", name: "Transport", amount: 115000, status: "Approved" }, { id: "EXP-02", name: "Godown rent", amount: 60000, status: "Approved" }, { id: "EXP-03", name: "Salaries", amount: 120000, status: "Approved" }, { id: "EXP-04", name: "Electricity", amount: 25000, status: "Approved" }, { id: "EXP-009", name: "Transport expense", amount: 8400, status: "Submitted", submittedBy: "Pooja Nayak", date: "26 Oct 2026", fpcId }],
@@ -486,6 +1106,10 @@ const seed: State = {
     shareholderDrafts: [],
     shareHistory: shareholders.map(s => ({ id: `HIST-${s.id}`, uniqueId: s.id, member: s.name, type: "Initial allotment", shares: s.shares, capital: s.capital, date: s.admitted, certificate: s.certificate, fpcId })),
     suppliers: supplierSeeds,
+    baselineAssessments: initialBaselineAssessments,
+    surveys: initialSurveys,
+    surveyResponses: initialSurveyResponses,
+    purchaseOrders: samplePurchaseOrders,
   },
   audit: Array.from({ length: 82 }, (_, i) => ({ id: `AUD-${String(i + 1).padStart(3, "0")}`, actor: ["Anita Das", "Pooja Nayak", "Bijay Kumar Mohanty", "Rakesh Hembram"][i % 4], role: ["Accountant / Finance Officer", "Data Entry Operator", "FPC Admin / Manager", "Compliance / Documentation Officer"][i % 4], action: ["approved payment PAY-0007", "edited farmer F-014 mobile", "rejected purchase PUR-2026-0023: rate above limit", "updated filing record"][i % 4], module: ["Finance", "Farmers", "Purchases", "Compliance"][i % 4], record: ["PAY-0007", "F-014", "PUR-2026-0023", "FIL-05"][i % 4], oldValue: ["Submitted", "98XXXX1100", "Submitted · Rs 84,750", "Overdue"][i % 4], newValue: ["Approved", "98XXXX4412", "Rejected · rate above limit", "GSTR-3B September · follow-up"][i % 4], date: `${String(1 + i % 28).padStart(2, "0")} Oct 2026 · ${String(9 + i % 8).padStart(2, "0")}:${String((i * 13) % 60).padStart(2, "0")}`, fpcId })),
   notifications: [{ id: "NT-01", title: "3 purchase entries waiting for approval", date: "Today", status: "Unread" }, { id: "NT-02", title: "Stock of Arhar is below threshold", date: "Today", status: "Unread" }],
@@ -516,7 +1140,7 @@ export const useDemoStore = create<DemoStore>()(withPersistence(
       const base = freshSeed(), savedRecords = saved.records || {}, records = { ...base.records, ...savedRecords };
       for (const [key, rows] of Object.entries(base.records)) records[key] = mergeRows(rows, savedRecords[key] || []);
       const merged = { ...base, ...saved, records };
-      for (const key of ["certificates", "walletTransactions", "rateHistory", "inputCatalog", "inputOrders", "saleRequests", "audit", "notifications", "syncQueue"] as const) {
+      for (const key of ["certificates", "walletTransactions", "rateHistory", "inputCatalog", "inputOrders", "purchaseOrders", "saleRequests", "audit", "notifications", "syncQueue"] as const) {
         merged[key] = mergeRows(base[key] as RecordRow[], (saved[key] as RecordRow[] | undefined) || []);
       }
       return { ...current, state: merged };

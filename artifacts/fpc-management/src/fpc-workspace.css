@@ -1,0 +1,867 @@
+/* FPC Management Workspace Styles - Green & White Design System */
+
+.fpc-ws-root {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 0 4px 60px;
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #1e293b;
+}
+
+/* ========================================================= */
+/* 1. TOP BREADCRUMB & NAVIGATION BAR */
+/* ========================================================= */
+.fpc-ws-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 18px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.fpc-ws-breadcrumb-nav {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.fpc-ws-breadcrumb-list {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex-wrap: wrap;
+}
+
+.fpc-ws-breadcrumb-crumb {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.fpc-ws-breadcrumb-btn {
+  background: none;
+  border: none;
+  padding: 3px 6px;
+  color: #475569;
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.fpc-ws-breadcrumb-btn:hover {
+  color: #166534;
+  background: #f0fdf4;
+}
+
+.fpc-ws-breadcrumb-sep {
+  color: #94a3b8;
+  display: inline-flex;
+  align-items: center;
+}
+
+.fpc-ws-breadcrumb-fpc {
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 13px;
+  max-width: 340px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block;
+}
+
+.fpc-ws-breadcrumb-active {
+  color: #166534;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  padding: 2px 10px;
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.fpc-ws-back-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.fpc-ws-back-btn:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+/* ========================================================= */
+/* 2. FPC SWITCHER & EXPORT/PRINT ACTION TOOLBAR */
+/* ========================================================= */
+.fpc-ws-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px 18px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.fpc-ws-switcher-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fpc-ws-switcher-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  white-space: nowrap;
+}
+
+.fpc-ws-select {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  height: 36px;
+  min-width: 280px;
+  max-width: 440px;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.fpc-ws-select:hover {
+  border-color: #94a3b8;
+}
+
+.fpc-ws-select:focus {
+  outline: none;
+  border-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.15);
+}
+
+.fpc-ws-toolbar-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fpc-ws-toolbar-btn {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #1e293b;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  height: 36px;
+}
+
+.fpc-ws-toolbar-btn:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+/* ========================================================= */
+/* 3. FPC PROFILE HEADER CARD */
+/* ========================================================= */
+.fpc-ws-profile-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #16a34a;
+  border-radius: 12px;
+  padding: 20px 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.fpc-ws-profile-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.fpc-ws-profile-logo-box {
+  width: 64px;
+  height: 64px;
+  min-width: 64px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.fpc-ws-profile-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 6px;
+}
+
+.fpc-ws-profile-logo-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f0fdf4;
+}
+
+.fpc-ws-profile-info {
+  flex: 1;
+  min-width: 280px;
+}
+
+.fpc-ws-profile-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.fpc-ws-profile-name {
+  font-size: 20px;
+  font-weight: 750;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.fpc-ws-id-badge {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  font-family: monospace;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.02em;
+}
+
+.fpc-ws-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.fpc-ws-chip.active {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.fpc-ws-chip.compliant {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.fpc-ws-profile-meta-grid {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: #475569;
+}
+
+.fpc-ws-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fpc-ws-meta-label {
+  font-weight: 600;
+  color: #64748b;
+}
+
+.fpc-ws-meta-val {
+  color: #1e293b;
+  font-weight: 500;
+}
+
+/* ========================================================= */
+/* 4. KPI SUMMARY CARDS GRID (8 INDIVIDUAL CARDS) */
+/* ========================================================= */
+.fpc-ws-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 1024px) {
+  .fpc-ws-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .fpc-ws-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fpc-ws-kpi-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 18px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: all 0.15s ease;
+}
+
+.fpc-ws-kpi-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.fpc-ws-kpi-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.fpc-ws-kpi-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+}
+
+.fpc-ws-kpi-icon-box {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.fpc-ws-kpi-icon-box.emerald {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.fpc-ws-kpi-icon-box.blue {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.fpc-ws-kpi-icon-box.amber {
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.fpc-ws-kpi-icon-box.indigo {
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.fpc-ws-kpi-icon-box.teal {
+  background: #f0fdfa;
+  color: #0f766e;
+}
+
+.fpc-ws-kpi-icon-box.purple {
+  background: #faf5ff;
+  color: #7e22ce;
+}
+
+.fpc-ws-kpi-icon-box.cyan {
+  background: #ecfeff;
+  color: #0e7490;
+}
+
+.fpc-ws-kpi-icon-box.rose {
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.fpc-ws-kpi-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 10px 0 4px;
+  line-height: 1.2;
+}
+
+.fpc-ws-kpi-sub {
+  font-size: 11.5px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+/* ========================================================= */
+/* 5. TAB NAVIGATION (A through J) */
+/* ========================================================= */
+.fpc-ws-tab-bar {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.fpc-ws-tab-btn {
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.fpc-ws-tab-btn:hover {
+  background: #f1f8f3;
+  color: #166534;
+}
+
+.fpc-ws-tab-btn.active {
+  background: #166534;
+  color: #ffffff;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(22, 101, 52, 0.25);
+}
+
+/* ========================================================= */
+/* 6. WORKSPACE TAB CONTENT PANELS */
+/* ========================================================= */
+.fpc-ws-panel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.fpc-ws-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.fpc-ws-section-titles h2 {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f2918;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fpc-ws-section-titles p {
+  font-size: 12px;
+  color: #64748b;
+  margin: 4px 0 0;
+}
+
+/* Card Grids */
+.fpc-ws-cards-2col {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+}
+
+.fpc-ws-cards-3col {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.fpc-ws-cards-4col {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 1024px) {
+  .fpc-ws-cards-2col,
+  .fpc-ws-cards-3col,
+  .fpc-ws-cards-4col {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fpc-ws-info-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 18px;
+}
+
+.fpc-ws-info-card-header {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.fpc-ws-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 6px 0;
+  font-size: 12px;
+  border-bottom: 1px dashed #f1f5f9;
+}
+
+.fpc-ws-info-row:last-child {
+  border-bottom: none;
+}
+
+.fpc-ws-info-label {
+  color: #64748b;
+  font-weight: 500;
+}
+
+.fpc-ws-info-val {
+  color: #0f172a;
+  font-weight: 700;
+  text-align: right;
+}
+
+/* Tables */
+.fpc-ws-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.fpc-ws-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+
+.fpc-ws-table th {
+  background: #f8fafc;
+  padding: 10px 14px;
+  font-weight: 700;
+  color: #475569;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.fpc-ws-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+}
+
+.fpc-ws-table tr:hover {
+  background: #fcfdfd;
+}
+
+.fpc-ws-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Status Chips */
+.fpc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.fpc-chip.active {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.fpc-chip.pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.fpc-chip.warn {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.fpc-chip.neutral {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+/* Metric Highlights Strip */
+.fpc-ws-metrics-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.fpc-ws-metric-box {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.fpc-ws-metric-box small {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.fpc-ws-metric-box strong {
+  display: block;
+  font-size: 20px;
+  font-weight: 800;
+  color: #0f172a;
+  margin-top: 4px;
+}
+
+.fpc-ws-metric-box span {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+/* ========================================================= */
+/* DETAIL DRAWERS & INSPECTION MODALS */
+/* ========================================================= */
+.fpc-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(2px);
+  z-index: 10000;
+  display: flex;
+  justify-content: flex-end;
+  animation: fpcFadeIn 0.2s ease-out;
+}
+
+@keyframes fpcFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fpcSlideIn {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.fpc-drawer {
+  width: min(720px, 96vw);
+  height: 100vh;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -10px 0 35px rgba(0, 0, 0, 0.25);
+  animation: fpcSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.fpc-drawer-head {
+  padding: 18px 24px;
+  background: #f8faf6;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.fpc-drawer-head h3 {
+  margin: 2px 0 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.fpc-drawer-head .fpc-drawer-eyebrow {
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #166534;
+}
+
+.fpc-drawer-body {
+  padding: 24px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.fpc-drawer-foot {
+  padding: 14px 24px;
+  background: #f8faf6;
+  border-top: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.fpc-clickable-row {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.fpc-clickable-row:hover {
+  background-color: #f0fdf4 !important;
+}
+
+.fpc-badge-readonly {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fpc-detail-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.fpc-detail-card-title {
+  font-size: 13px;
+  font-weight: 750;
+  color: #1e293b;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.fpc-kv-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.fpc-kv-grid.cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.fpc-kv-item small {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 2px;
+}
+
+.fpc-kv-item strong {
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.fpc-overview-header {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+}

@@ -17,6 +17,9 @@ type FarmerDetailsProps = {
   setToast: (s: string) => void;
   go: (route: string) => void;
   onEdit?: (farmer: RecordRow) => void;
+  onBack?: () => void;
+  farmerProp?: RecordRow;
+  fpcName?: string;
 };
 
 export default function FarmerDetails({
@@ -27,6 +30,9 @@ export default function FarmerDetails({
   setToast,
   go,
   onEdit,
+  onBack,
+  farmerProp,
+  fpcName,
 }: FarmerDetailsProps) {
   const [showAadhaar, setShowAadhaar] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
@@ -35,10 +41,10 @@ export default function FarmerDetails({
   const farmers = Array.isArray(state.records?.farmers) ? state.records.farmers : [];
   const applications = Array.isArray(state.records?.farmerApplications) ? state.records.farmerApplications : [];
 
-  const farmer = farmers.find(x => x.id === farmerId) || applications.find(x => x.id === farmerId);
+  const farmer = farmerProp || farmers.find(x => x.id === farmerId) || applications.find(x => x.id === farmerId);
 
-  const canEdit = can(role, "Farmers", "E");
-  const isAdmin = role === "FPC Admin / Manager" || role === "TSF Central Admin";
+  const canEdit = can(role, "Farmers", "E") && role !== "TSF Central Admin";
+  const isFpcAdmin = role === "FPC Admin / Manager";
 
   const producePurchases = (Array.isArray(state.records?.businessTransactions) ? state.records.businessTransactions : [])
     .filter(r => (r.flow === "Produce Purchase" || r.flowName === "Produce Purchase") && r.status === "Approved" && (r.farmerId === farmerId || (r.party && farmer?.name && r.party.includes(farmer.name))));
@@ -53,7 +59,7 @@ export default function FarmerDetails({
             <p>No farmer record matches ID <code>{farmerId}</code> in this cooperative workspace.</p>
           </div>
           <div className="em-actions">
-            <button type="button" className="em-btn" onClick={() => go("/farmers")}>
+            <button type="button" className="em-btn" onClick={() => (onBack ? onBack() : go("/farmers"))}>
               <ArrowLeft size={14} /> Back to All Farmers
             </button>
           </div>
@@ -64,7 +70,7 @@ export default function FarmerDetails({
           <p style={{ color: "#718177", fontSize: 13, maxWidth: 440, margin: "0 auto 18px" }}>
             The requested farmer ID does not exist in the active register or pending applications. It may have been soft-deleted or entered incorrectly.
           </p>
-          <button type="button" className="em-btn primary" onClick={() => go("/farmers")}>
+          <button type="button" className="em-btn primary" onClick={() => (onBack ? onBack() : go("/farmers"))}>
             <ArrowLeft size={14} /> Return to All Farmers
           </button>
         </div>
@@ -138,7 +144,7 @@ export default function FarmerDetails({
       {/* Page Header */}
       <div className="em-head" style={{ alignItems: "flex-start", gap: 16 }}>
         <div>
-          <span className="em-kicker">FARMER REGISTRY · RECORD DETAILS</span>
+          <span className="em-kicker">{fpcName ? `${fpcName} • FARMER OVERVIEW` : "FARMER REGISTRY · RECORD DETAILS"}</span>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 4, flexWrap: "wrap" }}>
             <h2 style={{ margin: 0, fontSize: 24, letterSpacing: "-.5px" }}>{farmer.name}</h2>
             <span className="em-mono" style={{ fontSize: 12, padding: "3px 8px", background: "#e8f0e6", borderRadius: 6, fontWeight: 700 }}>
@@ -159,10 +165,10 @@ export default function FarmerDetails({
         </div>
 
         <div className="em-actions" style={{ marginTop: 4 }}>
-          <button type="button" className="em-btn" onClick={() => go("/farmers")}>
+          <button type="button" className="em-btn" onClick={() => (onBack ? onBack() : go("/farmers"))}>
             <ArrowLeft size={14} /> Back to All Farmers
           </button>
-          {farmer.status === "Submitted" && isAdmin && (
+          {farmer.status === "Submitted" && isFpcAdmin && (
             <button
               type="button"
               className="em-btn primary"
@@ -609,11 +615,11 @@ export default function FarmerDetails({
 
         {/* Footer Actions */}
         <div className="em-formfoot" style={{ marginTop: 24, paddingTop: 16 }}>
-          <button type="button" className="em-btn" onClick={() => go("/farmers")}>
+          <button type="button" className="em-btn" onClick={() => (onBack ? onBack() : go("/farmers"))}>
             <ArrowLeft size={14} /> Back to All Farmers
           </button>
           <div className="em-inline">
-            {farmer.status === "Submitted" && isAdmin && (
+            {farmer.status === "Submitted" && isFpcAdmin && (
               <button
                 type="button"
                 className="em-btn primary"

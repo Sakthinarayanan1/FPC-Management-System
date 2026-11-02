@@ -92,11 +92,6 @@ const fpcAdminTree: NavigationNode[] = [
     leaf("directors-staff", "Directors and Staff", "/fpc-profile/directors-staff", "User management"),
     leaf("bank-accounts", "Bank Accounts", "/fpc-profile/bank-accounts", "Bank accounts"),
   ]),
-  group("fpc-management", "FPC Management", Building2, [
-    leaf("all-fpcs", "All FPCs", "/fpc-management", "FPC directory"),
-    leaf("onboard-fpc", "Onboard New FPC", "/fpc-management/onboard", "FPC onboarding"),
-    leaf("fpc-pending-approvals", "Pending Approvals", "/fpc-management/approvals", "FPC pending approvals"),
-  ]),
   group("farmer-management", "Farmer Management", Users, [
     leaf("farmers-all", "All Farmers", "/farmers", "Farmers", { detailRoute: "/farmers/:id" }),
     leaf("farmers-new", "Register Farmer", "/farmers/new", "Register farmer"),
@@ -165,37 +160,55 @@ const fpcAdminTree: NavigationNode[] = [
 ];
 
 const tsfTree: NavigationNode[] = [
-  group("dashboard", "Dashboard", Gauge, [overview("/national-dashboard", "National Dashboard", "National dashboard")]),
-  group("monitoring", "Monitoring", ClipboardCheck, [
-    leaf("checklist-matrix", "Checklist Matrix", "/monitoring", "Monitoring"),
-    leaf("fpc-journey", "FPC Journey", "/monitoring/journey", "Journey view"),
-    leaf("pending-items", "Pending Items", "/monitoring/pending", "Monitoring"),
+  group("tsf-dashboard", "TSF Central Dashboard", Gauge, [
+    leaf("network-dashboard", "Network Dashboard", "/national-dashboard", "National dashboard"),
+    leaf("network-analytics", "Network Analytics", "/tsf/analytics", "Analytics"),
   ]),
   group("fpc-management", "FPC Management", Building2, [
-    leaf("all-fpcs", "All FPCs", "/fpc-management", "FPC directory"),
+    leaf("fpc-list", "FPC List", "/fpc-management", "FPC directory", { detailRoute: "/tsf/fpc/:id" }),
     leaf("onboard-fpc", "Onboard New FPC", "/fpc-management/onboard", "FPC onboarding"),
-    leaf("fpc-pending-approvals", "Pending Approvals", "/fpc-management/approvals", "FPC pending approvals"),
   ]),
-  group("network-data", "Network Data", Map, [
-    leaf("network-farmers", "Farmers", "/network/farmers", "Farmers"),
-    leaf("network-shareholders", "Shareholders", "/network/shareholders", "Shareholders"),
-    leaf("network-business", "Business", "/network/business", "Monitoring"),
-    leaf("network-inventory", "Inventory", "/network/inventory", "Inventory"),
-    leaf("network-finance", "Finance", "/network/finance", "Monitoring"),
-    leaf("network-compliance", "Compliance", "/network/compliance", "Monitoring"),
+  group("network-monitoring", "Network Monitoring", Users, [
+    leaf("farmer-monitoring", "Farmer Monitoring", "/tsf/monitoring/farmers", "Farmer Monitoring"),
+    leaf("shareholder-monitoring", "Shareholder Monitoring", "/tsf/monitoring/shareholders", "Shareholder Monitoring"),
+    leaf("buyer-monitoring", "Buyer Monitoring", "/tsf/monitoring/buyers", "Buyer Monitoring"),
+    leaf("supplier-monitoring", "Supplier Monitoring", "/tsf/monitoring/suppliers", "Supplier Monitoring"),
+    leaf("user-monitoring", "Employee & User Monitoring", "/tsf/monitoring/users", "Employee & User Monitoring"),
+    leaf("survey-monitoring", "Surveys & Field Assessments", "/tsf/monitoring/surveys", "Surveys", { icon: ClipboardCheck }),
   ]),
-  group("analytics-mis", "Analytics and MIS", BarChart3, [
-    leaf("analytics", "Analytics", "/analytics", "Analytics"),
-    leaf("mis-reports", "MIS Reports", "/mis-reports", "Consolidated MIS"),
-    leaf("report-builder", "Report Builder", "/report-builder", "Consolidated MIS"),
+  group("business-monitoring", "Business Monitoring", BriefcaseBusiness, [
+    leaf("produce-monitoring", "Produce Purchase & Sale", "/tsf/business/produce", "Produce Purchase & Sale"),
+    leaf("input-monitoring", "Input Purchase & Sale", "/tsf/business/inputs", "Input Purchase & Sale"),
+    leaf("services-monitoring", "Services Monitoring", "/tsf/business/services", "Services Monitoring"),
+    leaf("inventory-monitoring", "Inventory Monitoring", "/tsf/business/inventory", "Inventory Monitoring"),
+    leaf("warehouse-monitoring", "Warehouse Monitoring", "/tsf/business/warehouses", "Warehouse Monitoring"),
   ]),
-  single("gallery", "Gallery", "/gallery", "Gallery", Image),
+  group("financial-monitoring", "Financial Monitoring", Landmark, [
+    leaf("consolidated-finance", "Consolidated Finance", "/tsf/finance/consolidated", "Consolidated Finance"),
+    leaf("farmer-settlements-mon", "Farmer Settlements", "/tsf/finance/farmer-settlements", "Farmer Settlements"),
+    leaf("buyer-receivables-mon", "Buyer Receivables", "/tsf/finance/buyer-receivables", "Buyer Receivables"),
+    leaf("supplier-payables-mon", "Supplier Payables", "/tsf/finance/supplier-payables", "Supplier Payables"),
+    leaf("financial-performance", "Financial Performance", "/tsf/finance/performance", "Financial Performance"),
+  ]),
+  group("compliance-governance", "Compliance & Governance", ShieldCheck, [
+    leaf("fpc-compliance", "FPC Compliance", "/tsf/compliance/fpc", "FPC Compliance"),
+    leaf("licenses-documents-mon", "Licenses & Documents", "/tsf/compliance/licenses", "Licenses & Documents"),
+    leaf("board-directors-mon", "Board of Directors", "/tsf/compliance/directors", "Board of Directors"),
+    leaf("roc-monitoring", "ROC Monitoring", "/tsf/compliance/roc", "ROC Monitoring"),
+    leaf("audit-activity-logs", "Audit & Activity Logs", "/tsf/compliance/audit-logs", "Audit & Activity Logs"),
+  ]),
+  group("reports-analytics", "Reports & Analytics", BarChart3, [
+    leaf("consolidated-mis", "Consolidated MIS", "/mis-reports", "Consolidated MIS"),
+    leaf("fpc-wise-reports", "FPC-wise Reports", "/tsf/reports/fpc-wise", "FPC-wise Reports"),
+    leaf("network-reports", "Network Reports", "/tsf/reports/network", "Network Reports"),
+    leaf("baseline-reports-mon", "Baseline & Impact Reports", "/tsf/reports/baseline", "Baseline reports", { icon: FileCheck2 }),
+    leaf("data-quality-reports", "Data Quality Reports", "/tsf/reports/data-quality", "Data Quality Reports"),
+    leaf("export-centre", "Export Centre", "/tsf/reports/export-centre", "Export Centre"),
+  ]),
   group("administration", "Administration", Settings, [
-    leaf("users-roles", "Users and Roles", "/administration/users", "Users & settings"),
-    leaf("announcements", "Announcements", "/administration/announcements", "Users & settings"),
-    leaf("audit-trail", "Audit Trail", "/administration/audit", "Audit & support"),
-    leaf("support", "Support", "/administration/support", "Audit & support"),
-    leaf("settings", "Settings", "/administration/settings", "Users & settings"),
+    leaf("user-mgmt", "User Management", "/tsf/administration/users", "User Management"),
+    leaf("role-mgmt", "Role & Permission Management", "/tsf/administration/roles", "Role & Permission Management"),
+    leaf("system-config", "System Configuration", "/tsf/administration/system", "System Configuration"),
   ]),
 ];
 

@@ -20,10 +20,19 @@ export const roleUsers: Record<Role, { name: string; mobile: string; initials: s
   Shareholder: { name: "Ravi Kumar", mobile: "98XXXX2241", initials: "RK" },
 };
 export const navByRole: Record<Role, string[]> = {
-  "TSF Central Admin": ["National dashboard", "Monitoring", "Network view", "Journey view", "FPC onboarding", "FPC pending approvals", "FPC directory", "Analytics", "Consolidated MIS", "Shareholder reports", "Users & settings", "Audit & support"],
-  "FPC Admin / Manager": ["Overview", "Analytics", "Setup checklist", "Approvals", "FPC profile", "FPC directory", "FPC onboarding", "FPC pending approvals", "Farmers", "Multi-FPC links", "Deleted farmers", "Register farmer", "Shareholders", "Register shareholder", "Certificates", "Produce Purchase", "Input Sale", "Produce Sale", "Input Purchase", "Farmer Settlement", "Advances & Dues", "Inventory", "Stock register", "Movements", "Adjustments", "Commodity & unit master", "Unit converter", "Baseline", "Commodity Baseline reports", "Buyer master", "Supplier master", "Finance", "Farmer ledger", "Buyer ledger", "Supplier ledger", "Cash book", "Bank book", "Receipts and payments", "Expense register", "Income & expenditure", "Profit & loss", "FPC rates", "Compliance", "Statutory calendar", "Filing tracker", "Meeting records", "Document vault", "User management", "Bank accounts", "Reports & gallery", "Messages", "Audit trail", "Sync centre", "Settings"],
-  "Accountant / Finance Officer": ["Finance dashboard", "Approvals", "Farmer ledger", "Buyer ledger", "Payments", "Wallet transactions", "Expenses", "Share capital", "Dividends", "Shareholder register", "Certificates", "Produce Purchase", "Input Sale", "Produce Sale", "Input Purchase", "Farmer Settlement", "Advances & Dues", "Shareholder reports", "Reports"],
-  "Procurement / Purchase Officer": ["Procurement dashboard", "Produce Purchase", "Input Purchase", "Purchase entries", "Farmers", "Input supply", "Stock register", "FPC rates", "Update rates", "Market rates"],
+  "TSF Central Admin": [
+    "National dashboard", "Network Dashboard", "Network Analytics", "Analytics",
+    "FPC List", "Onboard New FPC", "Pending Approvals",
+    "Farmer Monitoring", "Shareholder Monitoring", "Buyer Monitoring", "Supplier Monitoring", "Employee & User Monitoring", "Surveys & Field Assessments", "Surveys", "Baseline",
+    "Produce Purchase & Sale", "Input Purchase & Sale", "Services Monitoring", "Inventory Monitoring", "Warehouse Monitoring",
+    "Consolidated Finance", "Farmer Settlements", "Buyer Receivables", "Supplier Payables", "Financial Performance",
+    "FPC Compliance", "Licenses & Documents", "Board of Directors", "ROC Monitoring", "Audit & Activity Logs",
+    "Consolidated MIS", "FPC-wise Reports", "Network Reports", "Data Quality Reports", "Export Centre", "Baseline & Impact Reports",
+    "User Management", "Role & Permission Management", "System Configuration", "Monitoring", "Journey view", "Audit & support"
+  ],
+  "FPC Admin / Manager": ["Overview", "Analytics", "Setup checklist", "Approvals", "FPC profile", "Farmers", "Multi-FPC links", "Deleted farmers", "Register farmer", "Shareholders", "Register shareholder", "Certificates", "Produce Purchase", "Input Sale", "Produce Sale", "Input Purchase", "Farmer Settlement", "Advances & Dues", "Services", "Input supply", "Inventory", "Stock register", "Movements", "Adjustments", "Commodity & unit master", "Unit converter", "Baseline", "Commodity Baseline reports", "Buyer master", "Supplier master", "Finance", "Farmer ledger", "Buyer ledger", "Supplier ledger", "Cash book", "Bank book", "Receipts and payments", "Expense register", "Income & expenditure", "Profit & loss", "FPC rates", "Compliance", "Statutory calendar", "Filing tracker", "Meeting records", "Document vault", "User management", "Bank accounts", "Reports & gallery", "Messages", "Audit trail", "Sync centre", "Settings"],
+  "Accountant / Finance Officer": ["Finance dashboard", "Approvals", "Farmer ledger", "Buyer ledger", "Payments", "Wallet transactions", "Expenses", "Share capital", "Dividends", "Shareholder register", "Certificates", "Produce Purchase", "Input Sale", "Produce Sale", "Input Purchase", "Farmer Settlement", "Advances & Dues", "Services", "Input supply", "Shareholder reports", "Reports"],
+  "Procurement / Purchase Officer": ["Procurement dashboard", "Produce Purchase", "Input Purchase", "Purchase entries", "Farmers", "Services", "Input supply", "Stock register", "FPC rates", "Update rates", "Market rates"],
   "Sales / Marketing Officer": ["Sales dashboard", "Produce Sale", "Input Sale", "Sales entries", "Buyers", "Input supply", "Stock register", "FPC rates", "Market intelligence"],
   "Inventory / Stock Manager": ["Stock dashboard", "Inventory", "Stock register", "Movements", "Godowns", "Adjustments", "Unit converter"],
   "Data Entry Operator": ["Data entry home", "Farmers", "Register farmer", "Shareholders", "Register shareholder", "Purchases", "Sales", "Bulk upload", "Sync centre", "Rejected entries"],
@@ -36,8 +45,17 @@ export const navByRole: Record<Role, string[]> = {
 const full = "VCEDA XU".replaceAll(" ", "");
 const readExport = "VX";
 export const permissions: Record<string, Record<string, string>> = {
-  "TSF Central Admin": { "*": readExport, "FPC onboarding":full, "Monitoring":"VCEA", "Journey view":"VX", "Users & settings":full, "Audit & support":"VCEA", "Consolidated MIS":"VCX", "Shareholder reports":"VX", "Commodity Baseline reports":"VX", "Inventory":"VX", "Stock register":"VX", "Movements":"VX" },
-  "FPC Admin / Manager": { "*": full },
+  "TSF Central Admin": { "*": full },
+  "FPC Admin / Manager": {
+    "*": full,
+    "FPC onboarding": "",
+    "FPC pending approvals": "",
+    "FPC directory": "",
+    "FPC management": "",
+    "All FPCs": "",
+    "Onboard New FPC": "",
+    "Pending Approvals": "",
+  },
   "Accountant / Finance Officer": {
     "Finance dashboard": full, "Farmer ledger": full, "Buyer ledger": full, Payments: full,
     Expenses: full, "Share capital": full, Dividends: full, Reports: readExport, Purchases: "V", Sales: "V", "Wallet transactions":"VAX", "Shareholder reports":"VX", "Shareholder register":"VX", "Certificates":"VX", "Produce Purchase":full, "Input Purchase":full, "Produce Sale":full, "Input Sale":full, "Approvals":full, "Farmer Settlement":"VX", "Advances & Dues":full,

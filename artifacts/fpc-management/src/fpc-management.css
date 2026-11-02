@@ -50,6 +50,10 @@
 .fm-list-toolbar h2 { font-size: 15px; letter-spacing: -.015em; margin: 0 0 4px; }
 .fm-list-toolbar p { color: var(--fm-muted); font-size: 11px; margin: 0; }
 .fm-list-toolbar input, .fm-history-head input { background: #fbfcf9; border: 1px solid #dfe7df; border-radius: 7px; color: var(--fm-ink); font-size: 12px; min-height: 35px; padding: 7px 10px; width: min(280px, 42vw); }
+.fm-filter-select { background: #fbfcf9; border: 1px solid #dfe7df; border-radius: 7px; color: var(--fm-ink); font-size: 12px; min-height: 35px; padding: 6px 10px; font-weight: 500; outline: none; cursor: pointer; }
+.fm-filter-select:focus { border-color: #2e7d32; box-shadow: 0 0 0 2px rgba(46, 125, 50, 0.1); }
+.fm-manage-btn { background: #1b5e20; color: #ffffff; border: none; border-radius: 6px; padding: 5px 12px; font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; transition: background 0.15s ease; }
+.fm-manage-btn:hover { background: #144919; }
 .fm-table-scroll { overflow-x: auto; }
 .fm-table { border-collapse: collapse; min-width: 850px; width: 100%; }
 .fm-table th { background: #f8faf6; color: #78867c; font-size: 9px; font-weight: 850; letter-spacing: .09em; padding: 11px 15px; text-align: left; text-transform: uppercase; }

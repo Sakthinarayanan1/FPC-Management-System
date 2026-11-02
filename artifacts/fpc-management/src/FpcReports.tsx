@@ -12,6 +12,8 @@ const reportNames = [
   "Member Statistics",
   "Board of Directors and Employee Reports",
   "Geographic Presence Report",
+  "FPC Baseline Assessment Report",
+  "Network Survey Response Report",
 ];
 
 const records = (state: State, key: string): RecordRow[] => state.records?.[key] || [];
@@ -31,11 +33,21 @@ function moneyValue(value: unknown) {
   return Number.isFinite(number) ? money(number) : "—";
 }
 
-export default function FpcReports({ state, role }: { state: State; role: string }) {
+export default function FpcReports({
+  state,
+  role,
+  initialReport,
+}: {
+  state: State;
+  role: string;
+  initialReport?: string;
+}) {
   const isTsf = role === "TSF Central Admin";
   const allFpcs = records(state, "fpcs");
   const availableFpcs = isTsf ? allFpcs : allFpcs.filter(fpc => fpc.id === currentFpcId || fpc.fpcId === currentFpcId);
-  const [report, setReport] = useState(reportNames[0]);
+  const [report, setReport] = useState(
+    initialReport && reportNames.includes(initialReport) ? initialReport : reportNames[0]
+  );
   const [fpcFilter, setFpcFilter] = useState(isTsf ? "All FPCs" : currentFpcId);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<RecordRow | null>(null);
@@ -140,6 +152,65 @@ export default function FpcReports({ state, role }: { state: State; role: string
       ];
     });
 
+    if (report === "FPC Baseline Assessment Report") {
+      return visibleFpcs.map(fpc => {
+        const b = (state.records?.baselineAssessments || []).find((item: any) => item.fpcId === fpc.id) as any;
+        const indMap = new Map((b?.indicators || []).map((i: any) => [i.key, i]));
+        const baseFarmers = (indMap.get("registered_farmers") as any)?.baselineValue || "—";
+        const currFarmers = (indMap.get("registered_farmers") as any)?.currentValue || fpc.farmers || 0;
+        const farmerGrowth = (indMap.get("registered_farmers") as any)?.pctChange;
+        const baseTurnover = (indMap.get("annual_turnover") as any)?.baselineValue ? money(Number((indMap.get("annual_turnover") as any)?.baselineValue)) : "—";
+        const currTurnover = (indMap.get("annual_turnover") as any)?.currentValue ? money(Number((indMap.get("annual_turnover") as any)?.currentValue)) : "—";
+        const turnoverGrowth = (indMap.get("annual_turnover") as any)?.pctChange;
+        const currYield = (indMap.get("avg_yield") as any)?.currentValue || "—";
+        const godownsMT = (indMap.get("storage_capacity_mt") as any)?.currentValue || "—";
+        return {
+          id: `baseline-${fpc.id}`,
+          fpcId: fpc.id,
+          fpcCode: fpc.fpcId || fpc.id,
+          fpcName: fpc.name,
+          assessmentDate: b?.assessmentDate || "—",
+          assessorName: b?.assessorName || "—",
+          assessmentStatus: b?.status || "Pending",
+          baselineFarmers: baseFarmers,
+          currentFarmers: currFarmers,
+          farmerGrowth: farmerGrowth !== undefined ? `${farmerGrowth > 0 ? "+" : ""}${farmerGrowth}%` : "—",
+          baselineTurnover: baseTurnover,
+          currentTurnover: currTurnover,
+          turnoverGrowth: turnoverGrowth !== undefined ? `${turnoverGrowth > 0 ? "+" : ""}${turnoverGrowth}%` : "—",
+          storageCapacityMT: godownsMT,
+          avgYield: currYield,
+          signOffAuthority: b?.signedOffBy || "—",
+        };
+      });
+    }
+
+    if (report === "Network Survey Response Report") {
+      const surveys = ((state.records?.surveys || []) as any[]).filter(s =>
+        fpcFilter === "All FPCs" || s.fpcId === fpcFilter
+      );
+      return surveys.map(s => {
+        const fpc = allFpcs.find(f => f.id === s.fpcId);
+        return {
+          id: s.id,
+          surveyId: s.id,
+          fpcId: s.fpcId,
+          fpcName: fpc?.name || s.fpcId,
+          title: s.title,
+          category: s.category,
+          season: s.season || "—",
+          targetAudience: s.targetAudience,
+          targetSample: s.targetSample,
+          responsesCollected: s.responsesCount,
+          completionRate: `${s.completionRate}%`,
+          status: s.status,
+          startDate: s.startDate,
+          endDate: s.endDate,
+          leadInvestigator: s.leadInvestigator,
+        };
+      });
+    }
+
     const groups = new Map<string, { state: string; district: string; block: string; fpcCount: number; farmers: number; turnover: number; fpcId: string }>();
     for (const fpc of visibleFpcs) {
       const stateName = fpc.details?.location?.state || fpc.state || String(fpc.location || "").split(",").pop()?.trim() || "—";
@@ -162,7 +233,7 @@ export default function FpcReports({ state, role }: { state: State; role: string
 
   return <section className="fpc-reports">
     <header className="fr-header">
-      <div><span className="fr-eyebrow">{isTsf ? "TSF · Network reporting" : "FPC administration · Reports"}</span><h2>{isTsf ? "FPC network reports" : "FPC reports"}</h2><p>Seven operational views, filtered to your access and ready to export.</p></div>
+      <div><span className="fr-eyebrow">{isTsf ? "TSF · Network reporting" : "FPC administration · Reports"}</span><h2>{isTsf ? "FPC network reports" : "FPC reports"}</h2><p>{isTsf ? "Nine operational and baseline views, filtered to your access and ready to export." : "Seven operational views, filtered to your access and ready to export."}</p></div>
       <div className="fr-actions"><button onClick={() => downloadExcel(report, filteredRows)}><Download size={15}/> Export Excel</button><button onClick={() => window.print()}><Printer size={15}/> PDF / Print</button></div>
     </header>
     <div className="fr-toolbar">

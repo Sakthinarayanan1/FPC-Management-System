@@ -3,6 +3,7 @@ import { Check, ChevronRight, Download, FileText, Plus, Printer, RefreshCw, Sear
 import { convert, money, type RecordRow, type State } from "@/lib/store";
 import FpcReports from "./FpcReports";
 import FpcManagement from "./FpcManagement";
+import AccessDenied from "./AccessDenied";
 import "./admin-modules.css";
 
 type Props = {
@@ -516,7 +517,20 @@ export default function AdminModules(props: Props) {
   if (screen === "Audit trail") return <AuditTrail {...props}/>;
   if (screen === "Sync centre") return <SyncCentre {...props}/>;
   if (screen === "Analytics") return <Analytics {...props}/>;
-  if (["FPC onboarding", "FPC pending approvals", "FPC profile", "FPC directory", "FPC management"].includes(screen)) return <FpcManagement {...props}/>;
+  if (["FPC onboarding", "FPC pending approvals", "FPC directory", "FPC management"].includes(screen)) {
+    if (role !== "TSF Central Admin") {
+      return (
+        <AccessDenied
+          role={role as any}
+          attemptedPath={screen}
+          onGoHome={() => props.go("/overview")}
+          onGoProfile={() => props.go("/fpc-profile")}
+        />
+      );
+    }
+    return <FpcManagement {...props}/>;
+  }
+  if (screen === "FPC profile") return <FpcManagement {...props}/>;
   if (["Reports & gallery", "Consolidated MIS"].includes(screen)) return <FpcReports state={props.state} role={props.role}/>;
   return null;
 }

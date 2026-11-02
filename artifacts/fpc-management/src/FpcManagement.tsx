@@ -9,6 +9,7 @@ import {
   Check,
   CheckCircle2,
   CircleHelp,
+  ClipboardCheck,
   Clock3,
   Download,
   Edit,
@@ -24,6 +25,7 @@ import {
   Plus,
   RefreshCw,
   Save,
+  Search,
   ShieldAlert,
   ShieldCheck,
   Trash2,
@@ -36,6 +38,8 @@ import {
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import type { RecordRow, State } from "@/lib/store";
+import AccessDenied from "./AccessDenied";
+import FpcWorkspace from "./FpcWorkspace";
 import "./fpc-management.css";
 
 type Props = {
@@ -45,6 +49,7 @@ type Props = {
   screen: string;
   setToast: (message: string) => void;
   go: (screen: string) => void;
+  initialFpcId?: string;
 };
 
 type Obj = Record<string, any>;
@@ -456,7 +461,7 @@ const withDetails = (row?: RecordRow): Obj => {
 function Field({
   label,
   value,
-  onChange = () => {},
+  onChange = () => { },
   type = "text",
   hint,
   required = false,
@@ -553,14 +558,14 @@ export function Status({ value }: { value: string }) {
     v.includes("active") || v.includes("approved") || v.includes("complete")
       ? "good"
       : v.includes("submitted")
-      ? "wait"
-      : v.includes("review")
-      ? "info"
-      : v.includes("clarification")
-      ? "warn"
-      : v.includes("reject") || v.includes("inactive") || v.includes("expired")
-      ? "bad"
-      : "neutral";
+        ? "wait"
+        : v.includes("review")
+          ? "info"
+          : v.includes("clarification")
+            ? "warn"
+            : v.includes("reject") || v.includes("inactive") || v.includes("expired")
+              ? "bad"
+              : "neutral";
 
   return <span className={`fm-status ${tone}`}>{value || "Draft"}</span>;
 }
@@ -572,10 +577,35 @@ export default function FpcManagement({
   screen,
   setToast,
   go,
+  initialFpcId,
 }: Props) {
-  const isTsf = role === "TSF Central Admin" || role === "FPC Admin / Manager";
+  if (role !== "TSF Central Admin") {
+    return (
+      <AccessDenied
+        role={role as any}
+        attemptedPath="/fpc-management"
+        onGoHome={() => go?.("/overview")}
+        onGoProfile={() => go?.("/fpc-profile")}
+      />
+    );
+  }
+
+  const isTsf = true;
   const isProfile = /profile|company/i.test(screen) && !/onboard/i.test(screen);
   const isPendingQueue = /pending/i.test(screen);
+
+  const [selectedWorkspaceFpc, setSelectedWorkspaceFpc] = useState<RecordRow | null>(() => {
+    if (initialFpcId) {
+      return fpcRows(state).find((r) => r.id === initialFpcId || r.fpcId === initialFpcId) || null;
+    }
+    return null;
+  });
+  const [stateFilter, setStateFilter] = useState<string>("ALL");
+  const [districtFilter, setDistrictFilter] = useState<string>("ALL");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [complianceFilter, setComplianceFilter] = useState<string>("ALL");
+  const [fpcSortField, setFpcSortField] = useState<"name" | "id" | "turnover" | "farmers" | "shareholders" | "godowns">("name");
+  const [fpcSortDir, setFpcSortDir] = useState<"asc" | "desc">("asc");
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -598,6 +628,13 @@ export default function FpcManagement({
     () => fpcRows(state).find((r) => r.id === (selectedId || editingId)) || gv(state),
     [state.records?.fpcs, selectedId, editingId]
   );
+
+  useEffect(() => {
+    if (initialFpcId) {
+      const match = fpcRows(state).find((r) => r.id === initialFpcId || r.fpcId === initialFpcId);
+      if (match) setSelectedWorkspaceFpc(match);
+    }
+  }, [initialFpcId, state.records?.fpcs]);
 
   useEffect(() => {
     const target = gv(state);
@@ -657,15 +694,15 @@ export default function FpcManagement({
               fpcs: fpcRows(s).map((r) =>
                 r.id === editingId
                   ? {
-                      ...r,
-                      name: draft.basic?.legalName || r.name,
-                      location: `${draft.location?.district || ""}, ${draft.location?.state || ""}`.replace(/^, |, $/g, ""),
-                      farmers: String(draft.capital?.farmerCount || r.farmers || "0"),
-                      shareholders: String(draft.capital?.shareholderCount || r.shareholders || "—"),
-                      logo: draft.basic?.logo || r.logo || "",
-                      details: clone(draft),
-                      draftSavedAt: stamp(),
-                    }
+                    ...r,
+                    name: draft.basic?.legalName || r.name,
+                    location: `${draft.location?.district || ""}, ${draft.location?.state || ""}`.replace(/^, |, $/g, ""),
+                    farmers: String(draft.capital?.farmerCount || r.farmers || "0"),
+                    shareholders: String(draft.capital?.shareholderCount || r.shareholders || "—"),
+                    logo: draft.basic?.logo || r.logo || "",
+                    details: clone(draft),
+                    draftSavedAt: stamp(),
+                  }
                   : r
               ),
             },
@@ -714,7 +751,7 @@ export default function FpcManagement({
     fpcId: string
   ) => ({
     id: makeId("AUD-"),
-    actor: role === "FPC Admin / Manager" ? "Bijay Kumar Mohanty" : role || "TSF Central Admin",
+    actor: "TSF Central Admin",
     role,
     module,
     record,
@@ -1057,10 +1094,10 @@ export default function FpcManagement({
       status: nextStatus,
       ...(action === "approve"
         ? {
-            fpcId: row.fpcId || makeId("FPC-"),
-            onboardingDate: new Date().toISOString().slice(0, 10),
-            defaultMastersCopied: true,
-          }
+          fpcId: row.fpcId || makeId("FPC-"),
+          onboardingDate: new Date().toISOString().slice(0, 10),
+          defaultMastersCopied: true,
+        }
         : {}),
       rejectionReason: action === "reject" ? remarks.trim() : row.rejectionReason,
       clarificationRemarks: action === "clarification" ? remarks.trim() : row.clarificationRemarks,
@@ -1084,10 +1121,10 @@ export default function FpcManagement({
       action === "approve"
         ? "FPC approved successfully and activated on the network."
         : action === "reject"
-        ? "FPC marked as Rejected."
-        : action === "clarification"
-        ? "Clarification request recorded and dispatched to FPC."
-        : "FPC marked as Under Review."
+          ? "FPC marked as Rejected."
+          : action === "clarification"
+            ? "Clarification request recorded and dispatched to FPC."
+            : "FPC marked as Under Review."
     );
   };
 
@@ -1282,21 +1319,182 @@ export default function FpcManagement({
   // Filter Table Records
   const allRows = fpcRows(state).filter((r) => r.status !== "Deleted");
 
-  const filtered = allRows.filter((r) => {
-    const s = (r.status || "Draft").toLowerCase();
-    const matchQuery = `${r.name} ${r.id} ${r.fpcId || ""} ${r.location || ""} ${r.status || ""} ${r.details?.basic?.cin || ""} ${r.details?.basic?.pan || ""}`
-      .toLowerCase()
-      .includes(query.toLowerCase());
+  const filtered = allRows
+    .filter((r) => {
+      const s = (r.status || "Draft").toLowerCase();
+      const matchQuery = `${r.name} ${r.id} ${r.fpcId || ""} ${r.location || ""} ${r.status || ""} ${r.details?.basic?.cin || ""} ${r.details?.basic?.pan || ""}`
+        .toLowerCase()
+        .includes(query.toLowerCase());
 
-    if (!matchQuery) return false;
+      if (!matchQuery) return false;
 
-    if (filterTab === "active") return s === "active" || s.includes("active");
-    if (filterTab === "pending") return s === "submitted" || isPendingQueue;
-    if (filterTab === "clarification") return s.includes("review") || s.includes("clarification");
-    if (filterTab === "draft") return s === "draft";
-    if (filterTab === "inactive") return s === "inactive" || s === "rejected";
-    return true;
-  });
+      // State Filter
+      if (stateFilter !== "ALL") {
+        const rowState = r.state || r.details?.location?.state || (r.location?.includes("Jharkhand") ? "Jharkhand" : "Odisha");
+        if (rowState.toLowerCase() !== stateFilter.toLowerCase()) return false;
+      }
+
+      // District Filter
+      if (districtFilter !== "ALL") {
+        const rowDistrict = r.district || r.details?.location?.district || (r.location?.split(",")[0]?.trim() || "");
+        if (rowDistrict.toLowerCase() !== districtFilter.toLowerCase()) return false;
+      }
+
+      // Status Filter Dropdown
+      if (statusFilter !== "ALL") {
+        if (statusFilter === "active" && !s.includes("active")) return false;
+        if (statusFilter === "onboarding" && !s.includes("onboard")) return false;
+        if (statusFilter === "inactive" && !s.includes("inactive")) return false;
+        if (statusFilter === "draft" && !s.includes("draft")) return false;
+      }
+
+      // Compliance Filter Dropdown
+      if (complianceFilter !== "ALL") {
+        const isNonCompliant = s.includes("overdue") || s.includes("clarification") || s.includes("review");
+        if (complianceFilter === "compliant" && isNonCompliant) return false;
+        if (complianceFilter === "overdue" && !isNonCompliant) return false;
+      }
+
+      if (filterTab === "active") return s === "active" || s.includes("active");
+      if (filterTab === "pending") return s === "submitted" || isPendingQueue;
+      if (filterTab === "clarification") return s.includes("review") || s.includes("clarification");
+      if (filterTab === "draft") return s === "draft";
+      if (filterTab === "inactive") return s === "inactive" || s === "rejected";
+      return true;
+    })
+    .sort((a, b) => {
+      let diff = 0;
+      if (fpcSortField === "name") {
+        diff = (a.name || "").localeCompare(b.name || "");
+      } else if (fpcSortField === "id") {
+        diff = (a.id || "").localeCompare(b.id || "");
+      } else if (fpcSortField === "turnover") {
+        diff = (Number(a.turnover) || (a.id === "FPC-ODI-001" ? 7180000 : 5000000)) - (Number(b.turnover) || (b.id === "FPC-ODI-001" ? 7180000 : 5000000));
+      } else if (fpcSortField === "farmers") {
+        diff = (Number(a.farmers) || 0) - (Number(b.farmers) || 0);
+      } else if (fpcSortField === "shareholders") {
+        const sA = a.shareholders && a.shareholders !== "—" ? Number(a.shareholders) : (a.id === "FPC-ODI-001" ? 62 : 148);
+        const sB = b.shareholders && b.shareholders !== "—" ? Number(b.shareholders) : (b.id === "FPC-ODI-001" ? 62 : 148);
+        diff = sA - sB;
+      } else if (fpcSortField === "godowns") {
+        const gA = a.id === "FPC-ODI-001" ? ((state.records?.godowns?.length || 2) + 2) : (Number(a.godownCount) || (a.id === "FPC-ODI-002" ? 6 : a.id === "FPC-JHK-002" || a.id === "FPC-JHK-003" ? 3 : 4));
+        const gB = b.id === "FPC-ODI-001" ? ((state.records?.godowns?.length || 2) + 2) : (Number(b.godownCount) || (b.id === "FPC-ODI-002" ? 6 : b.id === "FPC-JHK-002" || b.id === "FPC-JHK-003" ? 3 : 4));
+        diff = gA - gB;
+      }
+      return fpcSortDir === "asc" ? diff : -diff;
+    });
+
+  const toggleSort = (field: "name" | "id" | "turnover" | "farmers" | "shareholders" | "godowns") => {
+    if (fpcSortField === field) {
+      setFpcSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setFpcSortField(field);
+      setFpcSortDir("asc");
+    }
+  };
+
+  const exportFpcListExcel = () => {
+    const data = filtered.map((row) => {
+      const b = row.details?.basic || {};
+      const loc = row.details?.location || {};
+      const stateName = row.state || loc.state || (row.location?.includes("Jharkhand") ? "Jharkhand" : "Odisha");
+      const districtName = row.district || loc.district || (row.location?.split(",")[0]?.trim() || "Keonjhar");
+      const blockName = row.block || loc.block || "Keonjhar Sadar";
+      const cin = b.cin || (row.id === "FPC-ODI-001" ? "U01100OD2021PTC035612" : `U01100${stateName === "Jharkhand" ? "JH" : "OD"}2022PTC0${row.id.replace(/\D/g, "").padStart(5, "0")}`);
+      const farmersCount = Number(row.farmers) || Number(b.farmerCount) || 100;
+      const shareholdersCount = row.shareholders && row.shareholders !== "—" ? Number(row.shareholders) : (row.id === "FPC-ODI-001" ? 62 : 148);
+      const buyersCount = state.records?.buyers?.length || 4;
+      const suppliersCount = state.records?.suppliers?.length || 3;
+      const godownsCount = row.id === "FPC-ODI-001" ? ((state.records?.godowns?.length || 2) + 2) : (Number(row.godownCount) || (row.id === "FPC-ODI-002" ? 6 : row.id === "FPC-JHK-002" || row.id === "FPC-JHK-003" ? 3 : 4));
+      const turnoverVal = Number(row.turnover) || (row.id === "FPC-ODI-001" ? 7180000 : 5000000);
+      const opStatus = row.status?.includes("overdue") ? "Active" : (row.status || "Active");
+      const compStatus = row.status?.toLowerCase().includes("overdue") ? "Compliance Overdue" : "Compliant";
+      const baselineRec = (state.records?.baselineAssessments || []).find(b => b.fpcId === row.id);
+      const fpcSurveys = (state.records?.surveys || []).filter(s => s.fpcId === row.id);
+
+      return {
+        "FPC Name": row.name,
+        "FPC ID": row.id,
+        "CIN": cin,
+        "State": stateName,
+        "District": districtName,
+        "Block": blockName,
+        "Registered Farmers": farmersCount,
+        "Total Shareholders": shareholdersCount,
+        "Total Buyers": buyersCount,
+        "Total Suppliers": suppliersCount,
+        "Total Godowns": godownsCount,
+        "Annual Turnover (INR)": turnoverVal,
+        "Operational Status": opStatus,
+        "Compliance Status": compStatus,
+        "Baseline Status": baselineRec?.status || "Completed",
+        "Total Surveys": fpcSurveys.length,
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "FPC Directory");
+    XLSX.writeFile(workbook, `TSF_FPC_Directory_${new Date().toISOString().split("T")[0]}.xlsx`);
+    setToast?.("FPC Directory exported to Excel successfully.");
+  };
+
+  const exportFpcListCsv = () => {
+    const headers = [
+      "FPC Name", "FPC ID", "CIN", "State", "District", "Block",
+      "Registered Farmers", "Total Shareholders", "Total Buyers", "Total Suppliers",
+      "Total Godowns", "Annual Turnover (INR)", "Operational Status", "Compliance Status",
+      "Baseline Status", "Total Surveys"
+    ];
+
+    const rows = filtered.map((row) => {
+      const b = row.details?.basic || {};
+      const loc = row.details?.location || {};
+      const stateName = row.state || loc.state || (row.location?.includes("Jharkhand") ? "Jharkhand" : "Odisha");
+      const districtName = row.district || loc.district || (row.location?.split(",")[0]?.trim() || "Keonjhar");
+      const blockName = row.block || loc.block || "Keonjhar Sadar";
+      const cin = b.cin || (row.id === "FPC-ODI-001" ? "U01100OD2021PTC035612" : `U01100${stateName === "Jharkhand" ? "JH" : "OD"}2022PTC0${row.id.replace(/\D/g, "").padStart(5, "0")}`);
+      const farmersCount = Number(row.farmers) || Number(b.farmerCount) || 100;
+      const shareholdersCount = row.shareholders && row.shareholders !== "—" ? Number(row.shareholders) : (row.id === "FPC-ODI-001" ? 62 : 148);
+      const buyersCount = state.records?.buyers?.length || 4;
+      const suppliersCount = state.records?.suppliers?.length || 3;
+      const godownsCount = row.id === "FPC-ODI-001" ? ((state.records?.godowns?.length || 2) + 2) : (Number(row.godownCount) || (row.id === "FPC-ODI-002" ? 6 : row.id === "FPC-JHK-002" || row.id === "FPC-JHK-003" ? 3 : 4));
+      const turnoverVal = Number(row.turnover) || (row.id === "FPC-ODI-001" ? 7180000 : 5000000);
+      const opStatus = row.status?.includes("overdue") ? "Active" : (row.status || "Active");
+      const compStatus = row.status?.toLowerCase().includes("overdue") ? "Compliance Overdue" : "Compliant";
+      const baselineRec = (state.records?.baselineAssessments || []).find(b => b.fpcId === row.id);
+      const fpcSurveys = (state.records?.surveys || []).filter(s => s.fpcId === row.id);
+
+      return [
+        `"${row.name.replace(/"/g, '""')}"`,
+        `"${row.id}"`,
+        `"${cin}"`,
+        `"${stateName}"`,
+        `"${districtName}"`,
+        `"${blockName}"`,
+        farmersCount,
+        shareholdersCount,
+        buyersCount,
+        suppliersCount,
+        godownsCount,
+        turnoverVal,
+        `"${opStatus}"`,
+        `"${compStatus}"`,
+        `"${baselineRec?.status || "Completed"}"`,
+        fpcSurveys.length
+      ].join(",");
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `TSF_FPC_Directory_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setToast?.("FPC Directory exported to CSV successfully.");
+  };
 
   // Calculate completeness for progress indicator
   const completeness = [
@@ -1498,7 +1696,7 @@ export default function FpcManagement({
                   <Field label="Director PAN" value={d.pan} placeholder="e.g. ABCDE1234F" onChange={(v) => setArrayField("directors", i, "pan", v.toUpperCase())} />
                   <Field label="Social Category" value={d.category} options={["General", "OBC", "SC", "ST", "Other"]} onChange={(v) => setArrayField("directors", i, "category", v)} />
                   <Field label="Active Status" value={d.status || "Active"} options={["Active", "Inactive"]} onChange={(v) => setArrayField("directors", i, "status", v)} />
-                  
+
                   {/* Photo Upload */}
                   <div className="fm-field">
                     <span>Photograph</span>
@@ -1647,7 +1845,7 @@ export default function FpcManagement({
         <Section title="Registered office and operating location" note="Dependent administrative hierarchy: State → District → Block → Gram Panchayat → Village." number="06">
           <div className="fm-grid three">
             <Field label="Registered Office Street Address" value={loc.address} required placeholder="Village, Landmark, Street" onChange={(v) => patch("location", "address", v)} />
-            
+
             {/* Dependent Dropdowns */}
             <Field
               label="State"
@@ -1826,16 +2024,16 @@ export default function FpcManagement({
                   {i === 0
                     ? b.legalName || "Legal identity details"
                     : i === 1
-                    ? `PAN: ${b.pan || "—"} • GSTIN: ${b.gstin || "—"}`
-                    : i === 2
-                    ? `Auth Capital: ₹${Number(c.authorisedCapital || 0).toLocaleString("en-IN")} • Turnover: ₹${Number(c.annualTurnover || 0).toLocaleString("en-IN")}`
-                    : i === 3
-                    ? `${dirs.length} Directors added • ${dirs.filter((d: Obj) => d.gender === "Female").length} Female`
-                    : i === 4
-                    ? `${b.logo ? "Logo attached" : "No logo"} • ${Object.values(docs).filter(Boolean).length} documents`
-                    : i === 5
-                    ? `${loc.village}, ${loc.block}, ${loc.district}, ${loc.state} - ${loc.pin}`
-                    : `${act.primary || "Produce Procurement"} • ${act.commodities || "Commodities"}`}
+                      ? `PAN: ${b.pan || "—"} • GSTIN: ${b.gstin || "—"}`
+                      : i === 2
+                        ? `Auth Capital: ₹${Number(c.authorisedCapital || 0).toLocaleString("en-IN")} • Turnover: ₹${Number(c.annualTurnover || 0).toLocaleString("en-IN")}`
+                        : i === 3
+                          ? `${dirs.length} Directors added • ${dirs.filter((d: Obj) => d.gender === "Female").length} Female`
+                          : i === 4
+                            ? `${b.logo ? "Logo attached" : "No logo"} • ${Object.values(docs).filter(Boolean).length} documents`
+                            : i === 5
+                              ? `${loc.village}, ${loc.block}, ${loc.district}, ${loc.state} - ${loc.pin}`
+                              : `${act.primary || "Produce Procurement"} • ${act.commodities || "Commodities"}`}
                 </small>
               </span>
               <span className="fm-review-link">
@@ -2162,6 +2360,26 @@ export default function FpcManagement({
     );
   }
 
+  // INDIVIDUAL FPC MANAGEMENT WORKSPACE
+  if (selectedWorkspaceFpc && !isEditing) {
+    return (
+      <FpcWorkspace
+        fpc={selectedWorkspaceFpc}
+        allFpcs={allRows}
+        state={state}
+        setState={setState}
+        role={role}
+        onBack={() => {
+          setSelectedWorkspaceFpc(null);
+          if (initialFpcId) go?.("/fpc-management");
+        }}
+        onSelectFpc={(newFpc) => setSelectedWorkspaceFpc(newFpc)}
+        setToast={setToast}
+        go={go}
+      />
+    );
+  }
+
   // WIZARD EDITING MODE (8-STEP WIZARD)
   if (isEditing || (isTsf && /onboard|new fpc|add fpc/i.test(screen))) {
     return (
@@ -2311,11 +2529,17 @@ export default function FpcManagement({
         <div className="fm-header-actions">
           {!isPendingQueue && (
             <>
+              <button type="button" className="fm-button secondary" onClick={exportFpcListExcel} title="Export FPC List to Excel">
+                <FileSpreadsheet size={14} style={{ color: "#166534" }} /> Export Excel
+              </button>
+              <button type="button" className="fm-button secondary" onClick={exportFpcListCsv} title="Export FPC List to CSV">
+                <Download size={14} /> Export CSV
+              </button>
               <button type="button" className="fm-button secondary" onClick={downloadTemplate}>
-                <Download size={14} /> Excel Template
+                <Download size={14} /> Template
               </button>
               <label className="fm-button secondary fm-upload-btn">
-                <Upload size={14} /> Import Excel / CSV
+                <Upload size={14} /> Import
                 <input
                   type="file"
                   accept=".xlsx,.xls,.csv,.tsv"
@@ -2385,36 +2609,141 @@ export default function FpcManagement({
           ))}
         </div>
 
-        <div className="fm-list-toolbar">
+        <div className="fm-list-toolbar" style={{ flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <h2>FPC Register & Directory</h2>
-            <p>Showing {filtered.length} producer companies across Odisha & Jharkhand.</p>
+            <h2 style={{ fontSize: 16, fontWeight: 700, color: "#1e293b", margin: 0 }}>FPC Register & Centralized Directory</h2>
+            <p style={{ color: "#64748b", fontSize: 12, margin: "2px 0 0" }}>
+              Showing {filtered.length} of {allRows.length} registered Producer Companies across Odisha & Jharkhand
+            </p>
           </div>
-          <input
-            aria-label="Search companies"
-            placeholder="Search FPC name, ID, CIN, PAN, state..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ position: "relative", minWidth: 220 }}>
+              <Search size={14} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "#94a3b8" }} />
+              <input
+                aria-label="Search companies"
+                placeholder="Search FPC, CIN, ID, location..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                style={{ paddingLeft: 30 }}
+              />
+            </div>
+
+            {/* State Filter */}
+            <select
+              aria-label="Filter by State"
+              value={stateFilter}
+              onChange={(e) => {
+                setStateFilter(e.target.value);
+                setDistrictFilter("ALL");
+              }}
+              className="fm-filter-select"
+            >
+              <option value="ALL">All States</option>
+              <option value="Odisha">Odisha</option>
+              <option value="Jharkhand">Jharkhand</option>
+            </select>
+
+            {/* District Filter */}
+            <select
+              aria-label="Filter by District"
+              value={districtFilter}
+              onChange={(e) => setDistrictFilter(e.target.value)}
+              className="fm-filter-select"
+            >
+              <option value="ALL">All Districts</option>
+              {stateFilter === "Odisha" || stateFilter === "ALL" ? (
+                <>
+                  <option value="Keonjhar">Keonjhar</option>
+                  <option value="Jajpur">Jajpur</option>
+                </>
+              ) : null}
+              {stateFilter === "Jharkhand" || stateFilter === "ALL" ? (
+                <>
+                  <option value="West Singhbhum">West Singhbhum</option>
+                  <option value="Seraikela-Kharsawan">Seraikela-Kharsawan</option>
+                </>
+              ) : null}
+            </select>
+
+            {/* Status Filter */}
+            <select
+              aria-label="Filter by Status"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="fm-filter-select"
+            >
+              <option value="ALL">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="onboarding">Onboarding</option>
+              <option value="inactive">Inactive</option>
+              <option value="draft">Draft</option>
+            </select>
+
+            {/* Compliance Filter */}
+            <select
+              aria-label="Filter by Compliance"
+              value={complianceFilter}
+              onChange={(e) => setComplianceFilter(e.target.value)}
+              className="fm-filter-select"
+            >
+              <option value="ALL">All Compliance</option>
+              <option value="compliant">Compliant</option>
+              <option value="overdue">Overdue / Action Req.</option>
+            </select>
+
+            <button
+              type="button"
+              className="fm-button secondary"
+              onClick={exportFpcListExcel}
+              title="Export FPC List to Excel"
+              style={{ fontSize: 12, padding: "6px 10px" }}
+            >
+              <FileSpreadsheet size={13} style={{ color: "#166534" }} /> Excel
+            </button>
+            <button
+              type="button"
+              className="fm-button secondary"
+              onClick={exportFpcListCsv}
+              title="Export FPC List to CSV"
+              style={{ fontSize: 12, padding: "6px 10px" }}
+            >
+              <Download size={13} /> CSV
+            </button>
+          </div>
         </div>
 
-        {/* FPC Management Table with All Required Columns */}
+        {/* FPC Management Centralized Table with All 12 Required Columns */}
         <div className="fm-table-scroll">
           <table className="fm-table">
             <thead>
               <tr>
-                <th>Logo</th>
-                <th>FPC ID</th>
-                <th>FPC Name</th>
+                <th onClick={() => toggleSort("name")} style={{ cursor: "pointer", userSelect: "none" }}>
+                  FPC Name & Logo {fpcSortField === "name" && (fpcSortDir === "asc" ? "↑" : "↓")}
+                </th>
+                <th onClick={() => toggleSort("id")} style={{ cursor: "pointer", userSelect: "none" }}>
+                  FPC ID {fpcSortField === "id" && (fpcSortDir === "asc" ? "↑" : "↓")}
+                </th>
                 <th>CIN</th>
-                <th>PAN</th>
-                <th>State & District</th>
-                <th>Farmers</th>
-                <th>Shareholders</th>
-                <th>Directors</th>
-                <th>Status</th>
-                <th>Onboarding Date</th>
-                <th>Actions</th>
+                <th>State, District & Block</th>
+                <th onClick={() => toggleSort("farmers")} style={{ cursor: "pointer", userSelect: "none", textAlign: "right" }}>
+                  Farmers {fpcSortField === "farmers" && (fpcSortDir === "asc" ? "↑" : "↓")}
+                </th>
+                <th onClick={() => toggleSort("shareholders")} style={{ cursor: "pointer", userSelect: "none", textAlign: "right" }}>
+                  Shareholders {fpcSortField === "shareholders" && (fpcSortDir === "asc" ? "↑" : "↓")}
+                </th>
+                <th style={{ textAlign: "right" }}>Buyers</th>
+                <th style={{ textAlign: "right" }}>Suppliers</th>
+                <th onClick={() => toggleSort("godowns")} style={{ cursor: "pointer", userSelect: "none", textAlign: "right" }}>
+                  Godowns {fpcSortField === "godowns" && (fpcSortDir === "asc" ? "↑" : "↓")}
+                </th>
+                <th onClick={() => toggleSort("turnover")} style={{ cursor: "pointer", userSelect: "none", textAlign: "right" }}>
+                  Annual Turnover {fpcSortField === "turnover" && (fpcSortDir === "asc" ? "↑" : "↓")}
+                </th>
+                <th>Operational Status</th>
+                <th>Compliance Status</th>
+                <th>Baseline</th>
+                <th>Surveys</th>
+                <th style={{ textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -2422,104 +2751,259 @@ export default function FpcManagement({
                 const rDetails = withDetails(row);
                 const b = rDetails.basic || {};
                 const loc = rDetails.location || {};
-                const dirs = rDetails.directors || [];
-                const logoSrc = b.logo || row.logo;
-                const statusStr = row.status || "Draft";
+                const stateName = row.state || loc.state || (row.location?.includes("Jharkhand") ? "Jharkhand" : "Odisha");
+                const districtName = row.district || loc.district || (row.location?.split(",")[0]?.trim() || "Keonjhar");
+                const blockName = row.block || loc.block || "Keonjhar Sadar";
+                const cin = b.cin || (row.id === "FPC-ODI-001" ? "U01100OD2021PTC035612" : `U01100${stateName === "Jharkhand" ? "JH" : "OD"}2022PTC0${row.id.replace(/\D/g, "").padStart(5, "0")}`);
+                const logoSrc = row.id === "FPC-ODI-001" ? "/ual-baha-logo.png" : (b.logo || row.logo || "/green-valley-logo.png");
+                const farmersCount = Number(row.farmers) || Number(b.farmerCount) || 100;
+                const shareholdersCount = row.shareholders && row.shareholders !== "—" ? Number(row.shareholders) : (row.id === "FPC-ODI-001" ? 62 : 148);
+                const buyersCount = state.records?.buyers?.length || 4;
+                const suppliersCount = state.records?.suppliers?.length || 3;
+                const godownsCount = row.id === "FPC-ODI-001" ? ((state.records?.godowns?.length || 2) + 2) : (Number(row.godownCount) || (row.id === "FPC-ODI-002" ? 6 : row.id === "FPC-JHK-002" || row.id === "FPC-JHK-003" ? 3 : 4));
+                const turnoverVal = Number(row.turnover) || (row.id === "FPC-ODI-001" ? 7180000 : 5000000);
+                const isOverdue = (row.status || "").toLowerCase().includes("overdue");
+                const isClarification = (row.status || "").toLowerCase().includes("clarification") || (row.status || "").toLowerCase().includes("review");
+                const opStatus = isOverdue ? "Active" : (row.status || "Active");
 
                 return (
-                  <tr key={row.id}>
+                  <tr
+                    key={row.id}
+                    onClick={() => setSelectedWorkspaceFpc(row)}
+                    style={{ cursor: "pointer", transition: "background 0.15s ease" }}
+                    title={`Click to open ${row.name} workspace`}
+                  >
                     <td>
-                      <div className="fm-table-logo">
-                        {logoSrc ? (
-                          <img src={logoSrc} alt={row.name} style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 5 }} />
-                        ) : (
-                          String(row.name || "FP").slice(0, 2).toUpperCase()
-                        )}
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div
+                          className="fm-table-logo"
+                          style={{
+                            width: 36,
+                            height: 36,
+                            minWidth: 36,
+                            borderRadius: 8,
+                            background: "#f0fdf4",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            overflow: "hidden",
+                            border: "1px solid #dcfce7"
+                          }}
+                        >
+                          <img
+                            src={logoSrc}
+                            alt={row.name}
+                            onError={(e) => {
+                              (e.currentTarget as HTMLElement).style.display = "none";
+                            }}
+                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                          />
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "#166534" }}>
+                            {row.name.slice(0, 2).toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <strong style={{ color: "#1e293b", fontSize: 13, display: "block" }}>
+                            {row.name}
+                          </strong>
+                          <span style={{ color: "#64748b", fontSize: 11 }}>
+                            {row.details?.activities?.primary || "Produce Aggregation & Allied Agri-Services"}
+                          </span>
+                        </div>
                       </div>
                     </td>
-                    <td className="fm-code" style={{ fontWeight: 700 }}>
-                      {row.fpcId || (["Draft", "Submitted"].includes(statusStr) ? "Pending" : row.id)}
-                    </td>
                     <td>
-                      <button
-                        type="button"
+                      <span
+                        className="fm-id-badge"
                         style={{
-                          background: "none",
-                          border: "none",
-                          padding: 0,
-                          textAlign: "left",
-                          cursor: "pointer",
-                          color: "#1b5e20",
-                          fontWeight: 700,
-                          fontSize: 12,
+                          background: "#f1f5f9",
+                          padding: "3px 8px",
+                          borderRadius: 4,
+                          fontFamily: "monospace",
+                          fontSize: 11,
+                          fontWeight: 600,
+                          color: "#334155"
                         }}
-                        onClick={() => setActiveProfileFpc(row)}
-                        title="View Full Profile"
                       >
-                        {row.name}
-                      </button>
-                      <small style={{ display: "block", color: "#6c7d71" }}>
-                        {row.details?.activities?.primary || "Produce Aggregation"}
-                      </small>
+                        {row.id}
+                      </span>
                     </td>
-                    <td className="fm-code">{b.cin || "—"}</td>
-                    <td className="fm-code">{b.pan || "—"}</td>
                     <td>
-                      {loc.state || "Odisha"}
-                      <small style={{ display: "block", color: "#748679" }}>{loc.district || "Keonjhar"}</small>
+                      <span style={{ fontFamily: "monospace", fontSize: 11, color: "#475569" }}>
+                        {cin}
+                      </span>
                     </td>
-                    <td>{row.farmers || b.farmerCount || "—"}</td>
-                    <td>{row.shareholders || "—"}</td>
-                    <td>{dirs.length || row.directorCount || "6"}</td>
                     <td>
-                      <Status value={statusStr} />
+                      <div>
+                        <strong style={{ color: "#1b5e20", display: "block", fontSize: 12 }}>
+                          {stateName}
+                        </strong>
+                        <span style={{ color: "#64748b", fontSize: 11 }}>
+                          {districtName} • {blockName}
+                        </span>
+                      </div>
                     </td>
-                    <td>{row.onboardingDate || "14 Jun 2021"}</td>
+                    <td style={{ textAlign: "right" }}>
+                      <strong style={{ color: "#0f172a", fontSize: 12 }}>
+                        {farmersCount.toLocaleString("en-IN")}
+                      </strong>
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <strong style={{ color: "#0f172a", fontSize: 12 }}>
+                        {shareholdersCount.toLocaleString("en-IN")}
+                      </strong>
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <span style={{ color: "#334155", fontSize: 12, fontWeight: 600 }}>
+                        {buyersCount}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <span style={{ color: "#334155", fontSize: 12, fontWeight: 600 }}>
+                        {suppliersCount}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <span style={{ color: "#334155", fontSize: 12, fontWeight: 600 }}>
+                        {godownsCount}
+                      </span>
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <strong style={{ color: "#166534", fontSize: 12 }}>
+                        {turnoverVal >= 10000000 ? `₹${(turnoverVal / 10000000).toFixed(2)} Cr` : `₹${(turnoverVal / 100000).toFixed(1)} L`}
+                      </strong>
+                    </td>
                     <td>
-                      <div className="fm-row-actions">
-                        <button type="button" onClick={() => setActiveProfileFpc(row)} title="View Profile">
-                          Profile
+                      <Status value={opStatus} />
+                    </td>
+                    <td>
+                      {isOverdue ? (
+                        <span
+                          className="tsf-chip danger"
+                          style={{
+                            background: "#fef2f2",
+                            color: "#b91c1c",
+                            border: "1px solid #fecaca",
+                            padding: "3px 8px",
+                            borderRadius: 12,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4
+                          }}
+                        >
+                          <AlertTriangle size={11} /> Overdue (12d)
+                        </span>
+                      ) : isClarification ? (
+                        <span
+                          className="tsf-chip onboarding"
+                          style={{
+                            background: "#eff6ff",
+                            color: "#1d4ed8",
+                            border: "1px solid #bfdbfe",
+                            padding: "3px 8px",
+                            borderRadius: 12,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4
+                          }}
+                        >
+                          <Clock3 size={11} /> Review
+                        </span>
+                      ) : (
+                        <span
+                          className="tsf-chip active"
+                          style={{
+                            background: "#f0fdf4",
+                            color: "#166534",
+                            border: "1px solid #bbf7d0",
+                            padding: "3px 8px",
+                            borderRadius: 12,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4
+                          }}
+                        >
+                          <CheckCircle2 size={11} /> Compliant
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      {(() => {
+                        const baselineRec = (state.records?.baselineAssessments || []).find(b => b.fpcId === row.id);
+                        const isCompleted = baselineRec?.status === "Completed";
+                        return (
+                          <span
+                            style={{
+                              background: isCompleted ? "#ecfdf5" : "#fef3c7",
+                              color: isCompleted ? "#065f46" : "#92400e",
+                              border: `1px solid ${isCompleted ? "#a7f3d0" : "#fde68a"}`,
+                              padding: "3px 8px",
+                              borderRadius: 12,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            <CheckCircle2 size={11} /> {baselineRec?.status || "Completed"}
+                          </span>
+                        );
+                      })()}
+                    </td>
+                    <td>
+                      {(() => {
+                        const fpcSurveys = (state.records?.surveys || []).filter(s => s.fpcId === row.id);
+                        return (
+                          <span
+                            style={{
+                              background: "#f1f5f9",
+                              color: "#334155",
+                              border: "1px solid #cbd5e1",
+                              padding: "3px 8px",
+                              borderRadius: 12,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              whiteSpace: "nowrap"
+                            }}
+                          >
+                            <ClipboardCheck size={11} style={{ color: "#059669" }} /> {fpcSurveys.length} {fpcSurveys.length === 1 ? "Survey" : "Surveys"}
+                          </span>
+                        );
+                      })()}
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <div
+                        style={{ display: "flex", gap: 6, justifyContent: "flex-end", alignItems: "center" }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          className="fm-manage-btn"
+                          onClick={() => setSelectedWorkspaceFpc(row)}
+                          title="Open dedicated FPC Management Workspace"
+                        >
+                          <Building2 size={12} /> Manage FPC →
                         </button>
-                        <button type="button" onClick={() => rowAction(row, "Edit")} title="Edit Details">
-                          Edit
+                        <button
+                          type="button"
+                          className="fm-button secondary compact"
+                          style={{ padding: "5px 8px", fontSize: 11, borderRadius: 6, border: "1px solid #cbd5e1", background: "#ffffff", cursor: "pointer" }}
+                          onClick={() => openEditor(row)}
+                          title="Edit FPC Registration"
+                        >
+                          <Edit size={12} />
                         </button>
-                        {statusStr === "Submitted" || statusStr.includes("Review") || statusStr.includes("Clarification") ? (
-                          <>
-                            <button
-                              type="button"
-                              className="accept"
-                              onClick={() => setSelectedId(row.id)}
-                              title="Review Application"
-                            >
-                              Review
-                            </button>
-                            {isTsf && (
-                              <button
-                                type="button"
-                                className="accept"
-                                onClick={() => reviewAction(row, "approve")}
-                                title="Approve FPC"
-                              >
-                                Approve
-                              </button>
-                            )}
-                          </>
-                        ) : null}
-                        <button type="button" onClick={() => setViewDocsFpc(row)} title="View Attached Documents">
-                          Docs
-                        </button>
-                        <button type="button" onClick={() => downloadFpcProfile(row)} title="Download Profile">
-                          <Download size={11} />
-                        </button>
-                        {statusStr === "Active" ? (
-                          <button type="button" className="reject" onClick={() => rowAction(row, "Deactivate")}>
-                            Deactivate
-                          </button>
-                        ) : statusStr === "Inactive" ? (
-                          <button type="button" className="accept" onClick={() => rowAction(row, "Reactivate")}>
-                            Reactivate
-                          </button>
-                        ) : null}
                       </div>
                     </td>
                   </tr>
@@ -2580,18 +3064,18 @@ export default function FpcManagement({
                       {i === 0
                         ? detailRow.details?.basic?.legalName || detailRow.name
                         : i === 1
-                        ? `CIN: ${detailRow.details?.basic?.cin || "Recorded"}`
-                        : i === 2
-                        ? `Auth Capital: ₹${Number(detailRow.details?.capital?.authorisedCapital || 0).toLocaleString("en-IN")}`
-                        : i === 3
-                        ? `${detailRow.details?.directors?.length || 6} Directors Verified`
-                        : i === 4
-                        ? "Logo & Documents Attached"
-                        : i === 5
-                        ? detailRow.location || "Location recorded"
-                        : i === 6
-                        ? detailRow.details?.activities?.primary || "Activities recorded"
-                        : "Ready for Approval"}
+                          ? `CIN: ${detailRow.details?.basic?.cin || "Recorded"}`
+                          : i === 2
+                            ? `Auth Capital: ₹${Number(detailRow.details?.capital?.authorisedCapital || 0).toLocaleString("en-IN")}`
+                            : i === 3
+                              ? `${detailRow.details?.directors?.length || 6} Directors Verified`
+                              : i === 4
+                                ? "Logo & Documents Attached"
+                                : i === 5
+                                  ? detailRow.location || "Location recorded"
+                                  : i === 6
+                                    ? detailRow.details?.activities?.primary || "Activities recorded"
+                                    : "Ready for Approval"}
                     </small>
                     <ArrowRight size={14} />
                   </button>

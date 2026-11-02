@@ -17,6 +17,9 @@ type ShareholderDetailsProps = {
   role: string;
   setToast: (s: string) => void;
   go: (route: string) => void;
+  onBack?: () => void;
+  shareholderProp?: RecordRow;
+  fpcName?: string;
 };
 
 const today = () => new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
@@ -33,7 +36,10 @@ export default function ShareholderDetails({
   setState,
   role,
   setToast,
-  go
+  go,
+  onBack,
+  shareholderProp,
+  fpcName,
 }: ShareholderDetailsProps) {
   const [showMobile, setShowMobile] = useState(false);
   const [showAadhaar, setShowAadhaar] = useState(false);
@@ -52,10 +58,11 @@ export default function ShareholderDetails({
   const certificates: RecordRow[] = state.certificates || [];
   const shareRequests: RecordRow[] = Array.isArray(state.records?.shareRequests) ? state.records.shareRequests : [];
 
-  const member = shareholders.find(x => x.id === shareholderId);
+  const member = shareholderProp || shareholders.find(x => x.id === shareholderId);
   const cert = certificates.find(c => c.uniqueId === shareholderId || c.certificate === member?.certificate || c.folio === member?.folio);
 
-  const isAdmin = role === "FPC Admin / Manager" || role === "TSF Central Admin";
+  const isAdmin = role === "FPC Admin / Manager";
+  const isTsf = role === "TSF Central Admin";
 
   if (!member) {
     return (
@@ -67,7 +74,7 @@ export default function ShareholderDetails({
             <p>No shareholder record matches identifier <code>{shareholderId}</code> in this cooperative workspace.</p>
           </div>
           <div className="em-actions">
-            <button type="button" className="em-btn primary" onClick={() => go("/shareholders")}>
+            <button type="button" className="em-btn primary" onClick={() => (onBack ? onBack() : go("/shareholders"))}>
               <ArrowLeft size={14} /> Back to All Shareholders
             </button>
           </div>
@@ -292,12 +299,12 @@ export default function ShareholderDetails({
       {/* Page Header and Action Toolbar */}
       <div className="em-head">
         <div>
-          <span className="em-kicker">SHAREHOLDER MANAGEMENT · STATUTORY REGISTER (TABLE-B)</span>
+          <span className="em-kicker">{fpcName ? `${fpcName} • SHAREHOLDER OVERVIEW` : "SHAREHOLDER MANAGEMENT · STATUTORY REGISTER (TABLE-B)"}</span>
           <h2>{name}</h2>
           <p>Official shareholder details, statutory allotment parameters, distinctive share registers, and documents.</p>
         </div>
         <div className="sh-details-actions">
-          <button type="button" className="em-btn" data-testid="sh-back-btn" onClick={() => go("/shareholders")}>
+          <button type="button" className="em-btn" data-testid="sh-back-btn" onClick={() => (onBack ? onBack() : go("/shareholders"))}>
             <ArrowLeft size={14} /> Back to All Shareholders
           </button>
           <button
@@ -317,10 +324,12 @@ export default function ShareholderDetails({
           >
             <ShieldCheck size={14} /> View Certificate
           </button>
-          <button type="button" className="em-btn primary" data-testid="sh-request-shares-btn" onClick={() => setSharesModal(true)}>
-            <HandCoins size={14} /> Request Additional Shares
-          </button>
-          {member.status === "Submitted" && isAdmin && (
+          {!isTsf && (
+            <button type="button" className="em-btn primary" data-testid="sh-request-shares-btn" onClick={() => setSharesModal(true)}>
+              <HandCoins size={14} /> Request Additional Shares
+            </button>
+          )}
+          {!isTsf && member.status === "Submitted" && isAdmin && (
             <button type="button" className="em-btn primary" data-testid="sh-approve-member-btn" onClick={handleApproveMember} style={{ background: "#286442" }}>
               <Check size={14} /> Approve Membership
             </button>
