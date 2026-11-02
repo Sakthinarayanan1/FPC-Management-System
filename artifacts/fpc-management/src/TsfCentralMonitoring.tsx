@@ -27,6 +27,7 @@ import FpcManagement from "./FpcManagement";
 import NetworkAnalytics from "./NetworkAnalytics";
 import FpcWorkspace from "./FpcWorkspace";
 import NetworkSurveysView from "./NetworkSurveysView";
+import BaselineSurveysModule from "./BaselineSurveysModule";
 import FpcReports from "./FpcReports";
 import "./tsf-monitoring.css";
 
@@ -575,6 +576,26 @@ export default function TsfCentralMonitoring({
         go={go}
         onOpenFpc={(fpc) => handleOpenFpc(fpc)}
       />
+    );
+  }
+
+  // If sub-screen is Baseline or Baseline and Surveys, render BaselineSurveysModule
+  if (
+    screen === "Baseline" ||
+    screen === "Baseline and Surveys" ||
+    screen === "Baseline survey" ||
+    (path && path.includes("/baseline") && !path.includes("/reports"))
+  ) {
+    return (
+      <div className="tsf-monitoring-shell">
+        <BaselineSurveysModule
+          state={state}
+          setState={setState}
+          role={role}
+          setToast={setToast}
+          go={go}
+        />
+      </div>
     );
   }
 

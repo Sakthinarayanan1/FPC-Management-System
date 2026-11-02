@@ -5,6 +5,7 @@ import SharePurchaseReceipt from "./SharePurchaseReceipt";
 import ProducePurchaseReceipt from "./ProducePurchaseReceipt";
 import ProduceSaleReceipt from "./ProduceSaleReceipt";
 import InputSaleReceipt from "./InputSaleReceipt";
+import BaselineSurveysModule from "./BaselineSurveysModule";
 import { fpcStores } from "@/lib/store";
 import "./enhanced-modules.css";
 
@@ -504,6 +505,9 @@ function FarmerModule({state,setState,role,screen,setToast,go,editFarmerId}:Prop
 
   const initialForm={name:"",gender:"Female",category:"ST",mobile:"",aadhaar:"",village:"Green Valley",block:"Keonjhar Sadar",panchayat:"Sanapatna",address:"",pin:"758001",land:"2.4",landUnit:"acre",plots:"2",plotArea:"1.2",crop:"Paddy",season:"Kharif",cropArea:"1.8",livestock:"2 goats, 1 cow",allied:"Poultry",agroforestry:"Mango and neem",ntfp:"Sal leaf collection",dairy:"1 cow · 4 litres/day",bank:"",account:"",ifsc:"",consent:"yes"};
   const [f,setF]=useState<Record<string,string>>(initialForm);
+  const [multiCrops, setMultiCrops] = useState<Array<{ id: string; season: string; cropName: string; areaAcre: number }>>([
+    { id: "c-init-1", season: "Kharif", cropName: "Paddy", areaAcre: 1.8 }
+  ]);
 
   const farmers=records(state,"farmers"),drafts=records(state,"farmerDrafts"),applications=records(state,"farmerApplications"),pending=role==="FPC Admin / Manager"||role==="TSF Central Admin";
   const patch=(k:string,v:string)=>setF(x=>({...x,[k]:v}));
@@ -549,10 +553,37 @@ function FarmerModule({state,setState,role,screen,setToast,go,editFarmerId}:Prop
         ifsc:String(targetFarmer.ifsc||""),
         consent:"yes"
       });
+
+      if (Array.isArray(targetFarmer.crops) && targetFarmer.crops.length > 0) {
+        setMultiCrops(targetFarmer.crops.map((c: any, i: number) => ({
+          id: c.id || `c-${i}`,
+          season: c.season || "Kharif",
+          cropName: c.cropName || c.crop || "Paddy",
+          areaAcre: Number(c.areaAcre || c.area) || 1.0
+        })));
+      } else if (targetFarmer.crop) {
+        const cropsList = String(targetFarmer.crop).split(",").map(s => s.trim()).filter(Boolean);
+        const totalArea = Number(targetFarmer.cropArea) || 1.8;
+        const eachArea = cropsList.length > 0 ? Number((totalArea / cropsList.length).toFixed(1)) : totalArea;
+        setMultiCrops(cropsList.map((cn, i) => ({
+          id: `c-tf-${i}`,
+          season: i === 0 ? String(targetFarmer.season || "Kharif") : (i === 1 ? "Rabi" : "Jayad"),
+          cropName: cn,
+          areaAcre: eachArea
+        })));
+      }
     }
   },[editFarmerId]);
 
-  const fill=()=>{setF({...f,name:"Kamala Majhi",gender:"Female",category:"ST",mobile:"9876543218",aadhaar:"491762803517",village:"Rugudi",block:"Harichandanpur",panchayat:"Rugudi",address:"Rugudi village, Harichandanpur block",pin:"758031",land:"2.4",landUnit:"acre",plots:"3",plotArea:"1.2",crop:"Paddy, Maize, Ragi",season:"Kharif",cropArea:"1.8",livestock:"2 goats, 1 indigenous cow",allied:"Backyard poultry, leaf-plate making",agroforestry:"Mango (4), neem (6), bamboo (12 clumps)",ntfp:"Sal leaves and mahua flowers",dairy:"1 cow · approximately 4 litres/day",bank:"Odisha Gramya Bank",account:"XXXXXX1234",ifsc:"IOBA0OGB001",consent:"yes"});setToast("Sample Kamala Majhi survey filled. Verify all details before submission.");};
+  const fill=()=>{
+    setF({...f,name:"Kamala Majhi",gender:"Female",category:"ST",mobile:"9876543218",aadhaar:"491762803517",village:"Rugudi",block:"Harichandanpur",panchayat:"Rugudi",address:"Rugudi village, Harichandanpur block",pin:"758031",land:"2.4",landUnit:"acre",plots:"3",plotArea:"1.2",crop:"Paddy, Maize, Ragi",season:"Kharif",cropArea:"1.8",livestock:"2 goats, 1 indigenous cow",allied:"Backyard poultry, leaf-plate making",agroforestry:"Mango (4), neem (6), bamboo (12 clumps)",ntfp:"Sal leaves and mahua flowers",dairy:"1 cow · approximately 4 litres/day",bank:"Odisha Gramya Bank",account:"XXXXXX1234",ifsc:"IOBA0OGB001",consent:"yes"});
+    setMultiCrops([
+      { id: "c-km-1", season: "Kharif", cropName: "Paddy", areaAcre: 1.0 },
+      { id: "c-km-2", season: "Rabi", cropName: "Maize", areaAcre: 0.5 },
+      { id: "c-km-3", season: "Jayad", cropName: "Ragi", areaAcre: 0.3 }
+    ]);
+    setToast("Sample Kamala Majhi survey filled. Verify all details before submission.");
+  };
 
   useEffect(()=>{
     if(isEdit)return;
@@ -583,6 +614,7 @@ function FarmerModule({state,setState,role,screen,setToast,go,editFarmerId}:Prop
       id,
       farmerId:id,
       ...f,
+      crops: multiCrops,
       land:`${f.land} ${f.landUnit}`,
       landArea:landAcres,
       landUnit:f.landUnit,
@@ -622,6 +654,7 @@ function FarmerModule({state,setState,role,screen,setToast,go,editFarmerId}:Prop
       ...f,
       id:targetFarmer.id,
       farmerId:targetFarmer.farmerId||targetFarmer.id,
+      crops: multiCrops,
       land:`${f.land} ${f.landUnit}`,
       landArea:landAcres,
       landUnit:f.landUnit,
@@ -648,7 +681,7 @@ function FarmerModule({state,setState,role,screen,setToast,go,editFarmerId}:Prop
   const decline=(r:RecordRow)=>{const reason=prompt(`Reason for rejecting ${r.name}:`);if(!reason?.trim()){setToast("A rejection reason is required.");return}const rejected={...r,status:"Rejected",rejectionReason:reason};setState(st=>({...withRows(st,"farmerApplications",records(st,"farmerApplications").map(x=>x.id===r.id?rejected:x)),audit:audit(st,role,"rejected farmer application","Farmers",r.id,r.status,rejected),notifications:[notice(`${r.name} application rejected: ${reason}`),...(st.notifications||[])]}));setToast("Application rejected with reason recorded.");};
   const searchable=farmers.filter(x=>searchText(x).includes(q.toLowerCase()));
 
-  if(["Baseline","Baseline survey","Commodity Baseline report"].includes(screen))return <Baseline {...{state,setState,role,screen,setToast}}/>;
+  if(["Baseline","Baseline survey","Commodity Baseline report"].includes(screen))return <BaselineSurveysModule state={state} setState={setState} role={role as any} screen={screen} setToast={setToast} go={go}/>;
 
   if(screen==="Register farmer")return <section className="em">
     <Header
@@ -698,16 +731,129 @@ function FarmerModule({state,setState,role,screen,setToast,go,editFarmerId}:Prop
         <Field label="Largest plot area (acre)" value={f.plotArea} onChange={v=>patch("plotArea",v)} type="number" testid="farmer-plot-area"/>
         <div className="em-stat"><small>Total area in acres</small><b>{(Number(f.land||0)*(f.landUnit==="hectare"?2.47105:f.landUnit==="guntha"?.025:1)).toFixed(2)}</b><span>Converted for reporting</span></div>
       </div>}
-      {step===2&&<div className="em-grid cols3" style={{marginTop:14}}>
-        <Field label="Main crops" value={f.crop} onChange={v=>patch("crop",v)} testid="farmer-crops"/>
-        <Field label="Season" value={f.season} onChange={v=>patch("season",v)} options={["Kharif","Rabi","Zaid","Perennial"]} testid="farmer-season"/>
-        <Field label="Crop area (acres)" value={f.cropArea} onChange={v=>patch("cropArea",v)} type="number" testid="farmer-crop-area"/>
-        <Field label="Livestock" value={f.livestock} onChange={v=>patch("livestock",v)} testid="farmer-livestock"/>
-        <Field label="Allied activities" value={f.allied} onChange={v=>patch("allied",v)} testid="farmer-allied"/>
-        <Field label="Agroforestry" value={f.agroforestry} onChange={v=>patch("agroforestry",v)} testid="farmer-agroforestry"/>
-        <Field label="NTFP" value={f.ntfp} onChange={v=>patch("ntfp",v)} testid="farmer-ntfp"/>
-        <Field label="Dairy" value={f.dairy} onChange={v=>patch("dairy",v)} testid="farmer-dairy"/>
-        <div className="em-note">Crop area may not exceed total land holding. Values describe a demo survey and should be confirmed in the field.</div>
+      {step===2&&<div style={{marginTop:14}}>
+        <div style={{background:"#f8faf8",border:"1px solid #d1fae5",borderRadius:8,padding:"12px 14px",marginBottom:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexWrap:"wrap",gap:6}}>
+            <div>
+              <strong style={{fontSize:13,color:"#065f46",display:"block"}}>Agricultural Cropping Patterns</strong>
+              <span style={{fontSize:11,color:"#047857"}}>Support for multiple seasonal crops with individual crop area (Acres)</span>
+            </div>
+            <button
+              type="button"
+              className="em-smallbtn"
+              style={{background:"#059669",color:"#fff",borderColor:"#047857",cursor:"pointer"}}
+              onClick={() => {
+                const next = [...multiCrops, { id: `c-${Date.now()}`, season: "Rabi", cropName: "Mustard", areaAcre: 0.8 }];
+                setMultiCrops(next);
+                patch("crop", next.map(c => c.cropName).filter(Boolean).join(", "));
+                patch("cropArea", next.reduce((sum, c) => sum + (Number(c.areaAcre) || 0), 0).toFixed(1));
+              }}
+            >
+              + Add Crop
+            </button>
+          </div>
+          <table style={{width:"100%",fontSize:12,borderCollapse:"collapse"}}>
+            <thead>
+              <tr style={{borderBottom:"1px solid #e5e7eb",color:"#374151",textAlign:"left"}}>
+                <th style={{padding:"6px 8px"}}>Crop Name</th>
+                <th style={{padding:"6px 8px"}}>Season</th>
+                <th style={{padding:"6px 8px"}}>Area (Acres)</th>
+                <th style={{padding:"6px 8px",width:40}}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {multiCrops.map((c, idx) => (
+                <tr key={c.id || idx} style={{borderBottom:"1px solid #f3f4f6"}}>
+                  <td style={{padding:"6px 8px"}}>
+                    <input
+                      type="text"
+                      className="em-input"
+                      style={{padding:"4px 8px",fontSize:12,width:"100%"}}
+                      value={c.cropName}
+                      placeholder="e.g. Paddy, Mustard, Maize"
+                      onChange={(e) => {
+                        const updated = [...multiCrops];
+                        updated[idx] = { ...updated[idx], cropName: e.target.value };
+                        setMultiCrops(updated);
+                        patch("crop", updated.map(x => x.cropName).filter(Boolean).join(", "));
+                      }}
+                    />
+                  </td>
+                  <td style={{padding:"6px 8px"}}>
+                    <select
+                      className="em-input"
+                      style={{padding:"4px 8px",fontSize:12,width:"100%"}}
+                      value={c.season}
+                      onChange={(e) => {
+                        const updated = [...multiCrops];
+                        updated[idx] = { ...updated[idx], season: e.target.value };
+                        setMultiCrops(updated);
+                        if (idx === 0) patch("season", e.target.value);
+                      }}
+                    >
+                      <option value="Kharif">Kharif</option>
+                      <option value="Rabi">Rabi</option>
+                      <option value="Jayad">Jayad / Zaid</option>
+                      <option value="Perennial">Perennial</option>
+                    </select>
+                  </td>
+                  <td style={{padding:"6px 8px"}}>
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      className="em-input"
+                      style={{padding:"4px 8px",fontSize:12,width:90}}
+                      value={c.areaAcre}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        const updated = [...multiCrops];
+                        updated[idx] = { ...updated[idx], areaAcre: val };
+                        setMultiCrops(updated);
+                        patch("cropArea", updated.reduce((sum, x) => sum + (Number(x.areaAcre) || 0), 0).toFixed(1));
+                      }}
+                    />
+                  </td>
+                  <td style={{padding:"6px 8px",textAlign:"center"}}>
+                    {multiCrops.length > 1 && (
+                      <button
+                        type="button"
+                        style={{background:"none",border:"none",color:"#ef4444",cursor:"pointer",fontSize:16,fontWeight:"bold"}}
+                        onClick={() => {
+                          const updated = multiCrops.filter((_, i) => i !== idx);
+                          setMultiCrops(updated);
+                          patch("crop", updated.map(x => x.cropName).filter(Boolean).join(", "));
+                          patch("cropArea", updated.reduce((sum, x) => sum + (Number(x.areaAcre) || 0), 0).toFixed(1));
+                        }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="em-grid cols3">
+          <Field label="Main crops (summary)" value={f.crop} onChange={v=>patch("crop",v)} testid="farmer-crops" placeholder="e.g. Paddy, Mustard"/>
+          <Field label="Primary season" value={f.season} onChange={v=>patch("season",v)} options={["Kharif","Rabi","Zaid","Perennial"]} testid="farmer-season"/>
+          <Field label="Total crop area (acres)" value={f.cropArea} onChange={v=>patch("cropArea",v)} type="number" testid="farmer-crop-area"/>
+          <Field label="Livestock holding" value={f.livestock} onChange={v=>patch("livestock",v)} testid="farmer-livestock" placeholder="e.g. 2 goats, 1 cow"/>
+          <Field label="Allied activities" value={f.allied} onChange={v=>patch("allied",v)} testid="farmer-allied" placeholder="e.g. Backyard poultry, vermicompost"/>
+          <Field label="Agroforestry / Plantation" value={f.agroforestry} onChange={v=>patch("agroforestry",v)} testid="farmer-agroforestry" placeholder="e.g. Mango (4), neem (6), bamboo"/>
+          <Field label="NTFP activities" value={f.ntfp} onChange={v=>patch("ntfp",v)} testid="farmer-ntfp" placeholder="e.g. Sal leaf collection, mahua flowers"/>
+          <Field label="Dairy & milk output" value={f.dairy} onChange={v=>patch("dairy",v)} testid="farmer-dairy" placeholder="e.g. 1 cow · 4 litres/day"/>
+          <div className="em-stat" style={{display:"flex",flexDirection:"column",justifyContent:"center"}}>
+            <small>Total Cropping Area</small>
+            <b>{f.cropArea || "0"} Acres</b>
+            <span style={{fontSize:11,color:Number(f.cropArea) > (Number(f.land) || 0) ? "#b45309" : "#047857"}}>
+              {Number(f.cropArea) > (Number(f.land) || 0) ? "⚠ Multi-season crop area exceeds land" : "Within operational landholding"}
+            </span>
+          </div>
+        </div>
+        <div className="em-note">Crop area and livelihood telemetry contribute directly to consolidated FPC baseline statistics and monitoring reports.</div>
       </div>}
       {step===3&&<div className="em-grid cols3" style={{marginTop:14}}>
         <Field label="Bank" value={f.bank} onChange={v=>patch("bank",v)} testid="farmer-bank"/>
