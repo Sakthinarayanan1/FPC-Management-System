@@ -46,6 +46,14 @@ export default function FarmerDetails({
   const canEdit = can(role, "Farmers", "E") && role !== "TSF Central Admin";
   const isFpcAdmin = role === "FPC Admin / Manager";
 
+  const surveyResponses = (Array.isArray(state.records?.surveyResponses) ? state.records.surveyResponses : []) as any[];
+  const baselineSurvey = farmer ? surveyResponses.find(
+    r => r.farmerId === farmer.id ||
+         r.respondentId === farmer.id ||
+         r.id === farmer.baselineSurveyId ||
+         (r.farmerName && farmer.name && r.farmerName.trim().toLowerCase() === farmer.name.trim().toLowerCase())
+  ) : null;
+
   const producePurchases = (Array.isArray(state.records?.businessTransactions) ? state.records.businessTransactions : [])
     .filter(r => (r.flow === "Produce Purchase" || r.flowName === "Produce Purchase") && r.status === "Approved" && (r.farmerId === farmerId || (r.party && farmer?.name && r.party.includes(farmer.name))));
 
@@ -400,6 +408,251 @@ export default function FarmerDetails({
             <div className="em-readonly">{farmer.dairy || "1 cow · local consumption"}</div>
           </div>
         </div>
+
+        {/* Section Baseline Assessment: Field Survey & Google Sheet 28-Field Standard */}
+        <div className="em-panel-head" style={{ borderTop: "1px solid #edf1eb", paddingTop: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", flexWrap: "wrap", gap: 8 }}>
+            <div>
+              <h3 style={{ display: "flex", alignItems: "center", gap: 7, margin: 0 }}>
+                <Sprout size={16} color="#1b5e20" /> Field Baseline &amp; Survey Assessment
+              </h3>
+              <p style={{ margin: "2px 0 0 0" }}>Household agricultural profile, multi-crop cultivation, livestock inventory and water resources</p>
+            </div>
+            {baselineSurvey ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span className="em-mono" style={{ fontSize: 11, background: "#e8f0e6", padding: "3px 8px", borderRadius: 4, fontWeight: 700, color: "#1b5e20" }}>
+                  Survey ID: {baselineSurvey.id}
+                </span>
+                <span className={`em-status ${baselineSurvey.verificationStatus === "Approved" || baselineSurvey.verificationStatus === "Verified" ? "verified" : "pending"}`} style={{ fontSize: 11 }}>
+                  ● {baselineSurvey.verificationStatus || "Submitted"}
+                </span>
+              </div>
+            ) : (
+              <span className="em-status" style={{ background: "#fef3c7", color: "#92400e", fontSize: 11 }}>
+                Baseline Pending
+              </span>
+            )}
+          </div>
+        </div>
+
+        {baselineSurvey ? (
+          <div style={{ marginBottom: 20 }}>
+            {/* 1. Location Details */}
+            <div style={{ background: "#f9fbf9", border: "1px solid #e2ece3", borderRadius: 8, padding: 14, marginBottom: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#1e3e2b", marginBottom: 10, textTransform: "uppercase", letterSpacing: ".5px" }}>
+                1. Location Details &amp; Administrative Hierarchy
+              </div>
+              <div className="em-grid cols4" style={{ gap: 10 }}>
+                <div className="em-field">
+                  <label>State</label>
+                  <div className="em-readonly">{baselineSurvey.state || farmer.state || "Odisha"}</div>
+                </div>
+                <div className="em-field">
+                  <label>District</label>
+                  <div className="em-readonly">{baselineSurvey.district || farmer.district || "Keonjhar"}</div>
+                </div>
+                <div className="em-field">
+                  <label>Unit / Cluster</label>
+                  <div className="em-readonly">{baselineSurvey.unit || "Keonjhar Cluster"}</div>
+                </div>
+                <div className="em-field">
+                  <label>Block</label>
+                  <div className="em-readonly">{baselineSurvey.block || farmer.block || "Keonjhar Sadar"}</div>
+                </div>
+                <div className="em-field">
+                  <label>Gram Panchayat (GP)</label>
+                  <div className="em-readonly">{baselineSurvey.gp || farmer.panchayat || "Sanapatna"}</div>
+                </div>
+                <div className="em-field">
+                  <label>Village</label>
+                  <div className="em-readonly">{baselineSurvey.village || farmer.village || "Green Valley"}</div>
+                </div>
+                <div className="em-field">
+                  <label>Share Issue Date</label>
+                  <div className="em-readonly">{baselineSurvey.shareIssueDate || "2021-06-15"}</div>
+                </div>
+                <div className="em-field">
+                  <label>Social Category &amp; Gender</label>
+                  <div className="em-readonly">{baselineSurvey.category || farmer.category || "General"} · {baselineSurvey.gender || farmer.gender || "Male"}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Land Details */}
+            <div style={{ background: "#f9fbf9", border: "1px solid #e2ece3", borderRadius: 8, padding: 14, marginBottom: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#1e3e2b", marginBottom: 10, textTransform: "uppercase", letterSpacing: ".5px" }}>
+                2. Land Details &amp; Irrigation Breakdown
+              </div>
+              <div className="em-grid cols5" style={{ gap: 10 }}>
+                <div className="em-field">
+                  <label>Type of Farmer</label>
+                  <div className="em-readonly">
+                    <strong style={{ color: "#1b5e20" }}>{baselineSurvey.typeOfFarmer || "Small"}</strong>
+                  </div>
+                </div>
+                <div className="em-field">
+                  <label>Total Land (Acres)</label>
+                  <div className="em-readonly font-bold">{baselineSurvey.totalLandAcre ?? 0} Ac</div>
+                </div>
+                <div className="em-field">
+                  <label>Irrigated Land (Acres)</label>
+                  <div className="em-readonly">{baselineSurvey.irrigatedAcre ?? 0} Ac</div>
+                </div>
+                <div className="em-field">
+                  <label>Non-Irrigated Land (Acres)</label>
+                  <div className="em-readonly">{baselineSurvey.nonIrrigatedAcre ?? 0} Ac</div>
+                </div>
+                <div className="em-field">
+                  <label>Sources of Irrigation</label>
+                  <div className="em-readonly font-medium" style={{ fontSize: 11 }}>
+                    {Array.isArray(baselineSurvey.sourceOfIrrigation) && baselineSurvey.sourceOfIrrigation.length > 0
+                      ? baselineSurvey.sourceOfIrrigation.join(", ")
+                      : "Well"}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Crop Details (Repeatable Entries) */}
+            <div style={{ background: "#f9fbf9", border: "1px solid #e2ece3", borderRadius: 8, padding: 14, marginBottom: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#1e3e2b", textTransform: "uppercase", letterSpacing: ".5px" }}>
+                  3. Crop Details (Seasonal Multi-Crop Cultivation)
+                </span>
+                <span style={{ fontSize: 11, color: "#546859" }}>
+                  {(baselineSurvey.crops || []).length} Recorded Crop(s)
+                </span>
+              </div>
+              {Array.isArray(baselineSurvey.crops) && baselineSurvey.crops.length > 0 ? (
+                <div style={{ border: "1px solid #e1ebe2", borderRadius: 6, overflow: "hidden" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                    <thead>
+                      <tr style={{ background: "#f0f5f0", borderBottom: "1px solid #e1ebe2" }}>
+                        <th style={{ padding: "7px 10px", textAlign: "left", color: "#455949", textTransform: "uppercase", fontSize: 9 }}>Season</th>
+                        <th style={{ padding: "7px 10px", textAlign: "left", color: "#455949", textTransform: "uppercase", fontSize: 9 }}>Crop Name</th>
+                        <th style={{ padding: "7px 10px", textAlign: "right", color: "#455949", textTransform: "uppercase", fontSize: 9 }}>Area (Acres)</th>
+                        <th style={{ padding: "7px 10px", textAlign: "right", color: "#455949", textTransform: "uppercase", fontSize: 9 }}>Est. Yield (Qtl)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {baselineSurvey.crops.map((c: any, idx: number) => (
+                        <tr key={c.id || idx} style={{ borderBottom: "1px solid #edf2ed" }}>
+                          <td style={{ padding: "7px 10px", fontWeight: 600, color: "#286442" }}>{c.season || "Kharif"}</td>
+                          <td style={{ padding: "7px 10px", fontWeight: 700 }}>{c.cropName || c.crop || "Paddy"}</td>
+                          <td style={{ padding: "7px 10px", textAlign: "right", fontFamily: "monospace" }}>{c.areaAcre ?? 0} Ac</td>
+                          <td style={{ padding: "7px 10px", textAlign: "right", fontFamily: "monospace" }}>{c.expectedProductionQtl ? `${c.expectedProductionQtl} Qtl` : "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p style={{ fontSize: 11, color: "#718177", margin: 0 }}>No specific crop records entered.</p>
+              )}
+            </div>
+
+            {/* 4. Livestock Details (Repeatable Entries) */}
+            <div style={{ background: "#f9fbf9", border: "1px solid #e2ece3", borderRadius: 8, padding: 14, marginBottom: 14 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#1e3e2b", textTransform: "uppercase", letterSpacing: ".5px" }}>
+                  4. Livestock Details (Animal Husbandry)
+                </span>
+                <span style={{ fontSize: 11, color: "#546859" }}>
+                  {(baselineSurvey.livestock || []).length} Livestock Record(s)
+                </span>
+              </div>
+              {Array.isArray(baselineSurvey.livestock) && baselineSurvey.livestock.length > 0 ? (
+                <div style={{ border: "1px solid #e1ebe2", borderRadius: 6, overflow: "hidden" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                    <thead>
+                      <tr style={{ background: "#f0f5f0", borderBottom: "1px solid #e1ebe2" }}>
+                        <th style={{ padding: "7px 10px", textAlign: "left", color: "#455949", textTransform: "uppercase", fontSize: 9 }}>Livestock Name</th>
+                        <th style={{ padding: "7px 10px", textAlign: "right", color: "#455949", textTransform: "uppercase", fontSize: 9 }}>Number / Count</th>
+                        <th style={{ padding: "7px 10px", textAlign: "center", color: "#455949", textTransform: "uppercase", fontSize: 9 }}>Purpose</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {baselineSurvey.livestock.map((l: any, idx: number) => (
+                        <tr key={l.id || idx} style={{ borderBottom: "1px solid #edf2ed" }}>
+                          <td style={{ padding: "7px 10px", fontWeight: 700, color: "#283d30" }}>{l.livestockName || "Cow"}</td>
+                          <td style={{ padding: "7px 10px", textAlign: "right", fontFamily: "monospace", fontWeight: 600 }}>{l.number ?? 0} Head</td>
+                          <td style={{ padding: "7px 10px", textAlign: "center" }}>
+                            <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 4, background: l.purpose === "Sale" || l.purpose === "Commercial" ? "#e4f5e7" : "#edf2f7", color: l.purpose === "Sale" || l.purpose === "Commercial" ? "#1e6833" : "#4a5568", fontWeight: 600 }}>
+                              {l.purpose === "Sale" || l.purpose === "Commercial" ? "Sale" : "Self"}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p style={{ fontSize: 11, color: "#718177", margin: 0 }}>No livestock records entered.</p>
+              )}
+            </div>
+
+            {/* 5 & 6. Plantation & Fisheries Details */}
+            <div className="em-grid cols2" style={{ gap: 14 }}>
+              <div style={{ background: "#f9fbf9", border: "1px solid #e2ece3", borderRadius: 8, padding: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#1e3e2b", marginBottom: 10, textTransform: "uppercase", letterSpacing: ".5px" }}>
+                  5. Plantation Details
+                </div>
+                <div className="em-grid cols2" style={{ gap: 10 }}>
+                  <div className="em-field">
+                    <label>Plantation Active</label>
+                    <div className="em-readonly">
+                      <strong>{baselineSurvey.plantation === "Yes" || baselineSurvey.plantation === true ? "Yes" : "No"}</strong>
+                    </div>
+                  </div>
+                  <div className="em-field">
+                    <label>Plantation Area (Acres)</label>
+                    <div className="em-readonly">{baselineSurvey.plantationAreaAcre ? `${baselineSurvey.plantationAreaAcre} Acres` : "0 Acres"}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ background: "#f9fbf9", border: "1px solid #e2ece3", borderRadius: 8, padding: 14 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#1e3e2b", marginBottom: 10, textTransform: "uppercase", letterSpacing: ".5px" }}>
+                  6. Fisheries Details
+                </div>
+                <div className="em-grid cols3" style={{ gap: 10 }}>
+                  <div className="em-field">
+                    <label>Pond</label>
+                    <div className="em-readonly">
+                      <strong>{baselineSurvey.pond === "Yes" || baselineSurvey.pond === true ? "Yes" : "No"}</strong>
+                    </div>
+                  </div>
+                  <div className="em-field">
+                    <label>Pond Size / Area</label>
+                    <div className="em-readonly">{baselineSurvey.pondSize || "—"}</div>
+                  </div>
+                  <div className="em-field">
+                    <label>Fish Farming</label>
+                    <div className="em-readonly">
+                      <strong>{baselineSurvey.fishFarming === "Yes" || baselineSurvey.fishFarming === true ? "Yes" : "No"}</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ padding: "20px", background: "#f8faf7", border: "1px dashed #d5e2d6", borderRadius: 8, textAlign: "center", marginBottom: 20 }}>
+            <Sprout size={32} style={{ color: "#2d653f", margin: "0 auto 8px" }} />
+            <h4 style={{ margin: "0 0 4px 0", fontSize: 13, color: "#283d30" }}>No Field Baseline Survey Conducted Yet</h4>
+            <p style={{ color: "#718177", fontSize: 11, maxWidth: 460, margin: "0 auto 12px" }}>
+              A 28-field baseline assessment captures household landholding, cropping patterns, livestock inventory, plantation, and fisheries data for targeted FPC support.
+            </p>
+            <button
+              type="button"
+              className="em-btn primary"
+              style={{ fontSize: 11, padding: "5px 12px" }}
+              onClick={() => go("/baseline")}
+            >
+              <Sprout size={12} /> Conduct Baseline Survey
+            </button>
+          </div>
+        )}
 
         {/* Section E: Bank and KYC */}
         <div className="em-panel-head" style={{ borderTop: "1px solid #edf1eb", paddingTop: 16 }}>

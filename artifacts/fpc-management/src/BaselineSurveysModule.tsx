@@ -19,6 +19,7 @@ import {
   type FpcSurvey, type FpcSurveyResponse,
   type FarmerCropRecord, type FarmerLivestockRecord
 } from "@/lib/store";
+import RegistrationSuccessModal from "./RegistrationSuccessModal";
 import "./baseline-surveys.css";
 
 interface Props {
@@ -142,6 +143,11 @@ export default function BaselineSurveysModule({
   // Farmer Baseline Survey Form Modal (All 28 Fields)
   const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
   const [formSurveyId, setFormSurveyId] = useState<string>("SRV-2026-000");
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    isEdit: boolean;
+    record: FpcSurveyResponse;
+  } | null>(null);
 
   // Form State initialized with defaults
   const [formData, setFormData] = useState<FpcSurveyResponse>({
@@ -213,6 +219,8 @@ export default function BaselineSurveysModule({
       id: `RSP-${Date.now().toString().slice(-4)}`,
       surveyId: targetSurvId,
       fpcId: targetFpcId,
+      farmerId: "",
+      respondentId: "",
       slNo: nextSl,
       state: targetFpcId.includes("JHK") ? "Jharkhand" : "Odisha",
       district: targetFpcId.includes("JHK") ? "Seraikela Kharsawan" : "Keonjhar",
@@ -231,10 +239,10 @@ export default function BaselineSurveysModule({
       nonIrrigatedAcre: 1.0,
       sourceOfIrrigation: ["Well"],
       crops: [
-        { id: `c-${Date.now()}-1`, season: "Kharif", cropName: "Paddy (Swarna)", areaAcre: 1.5, expectedProductionQtl: 25 }
+        { id: `c-${Date.now()}-1`, season: "Kharif", cropName: "Paddy", areaAcre: 1.5, expectedProductionQtl: 25 }
       ],
       livestock: [
-        { id: `l-${Date.now()}-1`, livestockName: "Cow", number: 2, purpose: "Mixed purpose" }
+        { id: `l-${Date.now()}-1`, livestockName: "Cow", number: 2, purpose: "Self" }
       ],
       plantation: "No",
       plantationAreaAcre: 0,
@@ -265,6 +273,8 @@ export default function BaselineSurveysModule({
       surveyId: formSurveyId || "SRV-2026-000",
       fpcId: selectedFpcId === "ALL" ? "FPC-ODI-001" : selectedFpcId,
       slNo: 1,
+      farmerId: "F-DEMO-01",
+      respondentId: "F-DEMO-01",
       state: "Jharkhand",
       district: "Seraikela Kharsawan",
       unit: "Jamshedpur",
@@ -280,16 +290,16 @@ export default function BaselineSurveysModule({
       totalLandAcre: 3.0,
       irrigatedAcre: 1.0,
       nonIrrigatedAcre: 2.0,
-      sourceOfIrrigation: ["Pond", "Well", "Boring", "River", "Canal", "Other"],
+      sourceOfIrrigation: ["Pond", "Well", "Boring", "River", "Nala", "Other"],
       crops: [
-        { id: "crp-k1", season: "Kharif", cropName: "Paddy (Swarna)", areaAcre: 1.5, expectedProductionQtl: 28 },
-        { id: "crp-k2", season: "Rabi", cropName: "Wheat (Sonalika)", areaAcre: 1.0, expectedProductionQtl: 14 },
-        { id: "crp-k3", season: "Jayad", cropName: "Mustard", areaAcre: 0.5, expectedProductionQtl: 5 }
+        { id: "crp-k1", season: "Kharif", cropName: "Paddy", areaAcre: 1.5, expectedProductionQtl: 28 },
+        { id: "crp-k2", season: "Rabi", cropName: "Wheat", areaAcre: 1.0, expectedProductionQtl: 14 },
+        { id: "crp-k3", season: "Rabi", cropName: "Mustard", areaAcre: 0.5, expectedProductionQtl: 5 }
       ],
       livestock: [
-        { id: "lst-k1", livestockName: "Cow", number: 2, purpose: "Mixed purpose" },
-        { id: "lst-k2", livestockName: "Goat", number: 4, purpose: "Commercial" },
-        { id: "lst-k3", livestockName: "Hen", number: 10, purpose: "Self-consumption" }
+        { id: "lst-k1", livestockName: "Cow", number: 2, purpose: "Self" },
+        { id: "lst-k2", livestockName: "Goat", number: 4, purpose: "Sale" },
+        { id: "lst-k3", livestockName: "Hen", number: 10, purpose: "Self" }
       ],
       plantation: "Yes",
       plantationAreaAcre: 0.5,
@@ -303,7 +313,6 @@ export default function BaselineSurveysModule({
       ntfpActivities: ["Sal Leaf", "Mahua"],
       dairy: "1 cow · 4 litres/day",
       dairyDailyLiters: 4,
-      respondentId: "F-DEMO-01",
       respondentName: "Krishna Munda",
       respondentVillage: "Panarol",
       submissionDate: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
@@ -318,12 +327,30 @@ export default function BaselineSurveysModule({
   };
 
   // -------------------------------------------------------------
-  // PREFILL FROM REGISTERED FARMER
+  // SELECT REGISTERED FARMER (AUTO-FETCH IDENTITY & LANDHOLDING)
   // -------------------------------------------------------------
-  const registeredFarmers = useMemo(() => state.records?.farmers || [], [state.records?.farmers]);
+  const registeredFarmers = useMemo(() => {
+    const list = [...(state.records?.farmers || []), ...(state.records?.farmerApplications || [])];
+    if (selectedFpcId === "ALL") return list;
+    const fpcSpecific = list.filter((f: any) => !f.fpcId || f.fpcId === selectedFpcId);
+    return fpcSpecific.length > 0 ? fpcSpecific : list;
+  }, [state.records?.farmers, state.records?.farmerApplications, selectedFpcId]);
 
-  const handlePrefillFromFarmer = (farmerId: string) => {
-    const f = registeredFarmers.find(rf => rf.id === farmerId || rf.farmerId === farmerId);
+  const handleFarmerIdSelect = (farmerId: string) => {
+    if (!farmerId) {
+      setFormData(prev => ({
+        ...prev,
+        farmerId: "",
+        respondentId: "",
+        farmerName: "",
+        mobileNo: "",
+        respondentName: ""
+      }));
+      return;
+    }
+
+    const allFarmers = [...(state.records?.farmers || []), ...(state.records?.farmerApplications || [])];
+    const f = allFarmers.find(rf => rf.id === farmerId || rf.farmerId === farmerId);
     if (!f) return;
 
     const land = Number(f.landArea) || Number(String(f.land || "").replace(/[^\d.]/g, "")) || 2.5;
@@ -333,36 +360,39 @@ export default function BaselineSurveysModule({
     const cropsList: FarmerCropRecord[] = (Array.isArray(f.crops) && f.crops.length > 0)
       ? f.crops.map((c: any, i: number) => ({
           id: c.id || `c-pre-${i}`,
-          season: c.season || f.season || "Kharif",
+          season: c.season === "Rabi" ? "Rabi" : "Kharif",
           cropName: c.cropName || c.crop || "Paddy",
           areaAcre: Number(c.areaAcre) || Number(f.cropArea) || 1.0,
           expectedProductionQtl: Number(c.expectedProductionQtl) || 15
         }))
       : [{
           id: `c-pre-0`,
-          season: String(f.season || "Kharif"),
-          cropName: String(f.crop || "Paddy"),
+          season: f.season === "Rabi" ? "Rabi" : "Kharif",
+          cropName: String(f.crop || "Paddy").split(",")[0].trim() || "Paddy",
           areaAcre: Number(f.cropArea) || Math.min(land, 1.8),
           expectedProductionQtl: 18
         }];
 
     setFormData(prev => ({
       ...prev,
-      farmerName: f.name || f.farmerName || prev.farmerName,
-      mobileNo: f.mobile || f.phone || prev.mobileNo,
+      farmerId: f.id,
+      respondentId: f.id,
+      farmerName: f.name || f.farmerName || "",
+      mobileNo: f.mobile || f.phone || "",
       village: f.village || prev.village,
       block: f.block || prev.block,
       district: f.district || prev.district,
       state: f.state || prev.state,
+      gp: f.panchayat || f.gp || prev.gp,
       category: (f.category as any) || prev.category,
       gender: (f.gender as any) || prev.gender,
       totalLandAcre: land,
       irrigatedAcre: irrigated,
       nonIrrigatedAcre: nonIrr,
-      typeOfFarmer: land < 2.5 ? "Marginal" : land <= 5.0 ? "Small" : "Medium",
+      typeOfFarmer: land < 2.5 ? "Marginal" : land <= 5.0 ? "Small" : "Big",
       crops: cropsList,
       livestock: f.livestock && f.livestock !== "—" ? [
-        { id: `lst-pre-1`, livestockName: "Cow", number: 2, purpose: "Mixed purpose" }
+        { id: `lst-pre-1`, livestockName: "Cow", number: 2, purpose: "Self" }
       ] : prev.livestock,
       allied: f.allied || prev.allied,
       agroforestry: f.agroforestry || prev.agroforestry,
@@ -371,11 +401,13 @@ export default function BaselineSurveysModule({
       ntfp: f.ntfp || prev.ntfp,
       dairy: f.dairy || prev.dairy,
       dairyDailyLiters: Number(f.dairyDailyLiters) || (f.dairy ? parseInt(f.dairy.replace(/[^\d]/g, "")) || 0 : 0),
-      respondentId: f.id,
-      respondentName: f.name || f.farmerName
+      respondentName: f.name || f.farmerName,
+      respondentVillage: f.village || prev.village
     }));
-    setToast(`Prefilled profile, crops, and livelihood details for ${f.name} (${f.id}).`);
+    setToast(`Linked ${f.name} (${f.id}) — Name and mobile fetched automatically.`);
   };
+
+  const handlePrefillFromFarmer = handleFarmerIdSelect;
 
   // -------------------------------------------------------------
   // FORM SAVE / SUBMIT / DRAFT
@@ -387,8 +419,14 @@ export default function BaselineSurveysModule({
       return;
     }
 
+    const selectedFarmerId = formData.farmerId || formData.respondentId;
+    if (!selectedFarmerId) {
+      setToast("Farmer ID is required. Please select a registered farmer.");
+      return;
+    }
+
     if (!formData.farmerName?.trim()) {
-      setToast("Farmer Name is required.");
+      setToast("Farmer Name could not be loaded. Please choose a valid registered farmer.");
       return;
     }
 
@@ -406,11 +444,34 @@ export default function BaselineSurveysModule({
       return;
     }
 
+    if (!formData.crops || formData.crops.length === 0) {
+      setToast("Please add at least one crop record.");
+      return;
+    }
+
+    for (const c of formData.crops) {
+      if (!c.cropName?.trim()) {
+        setToast("Please specify a valid crop name for each crop row.");
+        return;
+      }
+      if (c.areaAcre <= 0) {
+        setToast(`Please specify a positive cultivated area for crop ${c.cropName}.`);
+        return;
+      }
+    }
+
+    if ((formData.plantation === "Yes" || formData.plantation === true) && (formData.plantationAreaAcre ?? 0) <= 0) {
+      setToast("Please enter a valid Plantation Area in acres.");
+      return;
+    }
+
     // Auto-associate new survey strictly with logged-in user's assigned FPC
     const enforcedFpcId = !isTsf ? userFpcId : formData.fpcId;
 
     const newRec: FpcSurveyResponse = {
       ...formData,
+      farmerId: selectedFarmerId,
+      respondentId: selectedFarmerId,
       fpcId: enforcedFpcId,
       id: formData.id || `RSP-${Date.now().toString().slice(-4)}`,
       verificationStatus: asDraft ? "Draft" : "Submitted",
@@ -470,17 +531,40 @@ export default function BaselineSurveysModule({
       return srv;
     });
 
+    // Also update state.records.farmers to link baselineSurveyId
+    const updatedFarmers = (state.records?.farmers || []).map(f => {
+      if (f.id === selectedFarmerId || f.farmerId === selectedFarmerId) {
+        return {
+          ...f,
+          baselineSurveyId: newRec.id,
+          baselineCompleted: true,
+          landArea: newRec.totalLandAcre ?? f.landArea,
+          land: newRec.totalLandAcre ? `${newRec.totalLandAcre} acres` : f.land,
+          irrigatedLand: newRec.irrigatedAcre ?? f.irrigatedLand,
+          crops: newRec.crops || f.crops
+        };
+      }
+      return f;
+    });
+
     setState(prev => ({
       ...prev,
       records: {
         ...prev.records,
         surveyResponses: updatedResponses as any,
-        surveys: updatedSurveys as any
+        surveys: updatedSurveys as any,
+        farmers: updatedFarmers as any
       }
     }));
 
+    const isEditMode = existingIndex >= 0;
     setIsFormOpen(false);
-    setToast(asDraft ? "Survey saved as Draft successfully." : "Farmer baseline survey submitted successfully.");
+    setToast(asDraft ? "Survey saved as Draft successfully." : (isEditMode ? "Field survey response updated successfully." : "Farmer baseline survey submitted successfully."));
+    setSuccessModal({
+      isOpen: true,
+      isEdit: isEditMode,
+      record: newRec
+    });
   };
 
   // -------------------------------------------------------------
@@ -612,6 +696,7 @@ export default function BaselineSurveysModule({
 
       return {
         "Sl No": r.slNo || idx + 1,
+        "Farmer ID": r.farmerId || r.respondentId || "—",
         "State": r.state || "Odisha",
         "District": r.district || "Keonjhar",
         "Unit": r.unit || "Keonjhar Cluster",
@@ -706,7 +791,7 @@ export default function BaselineSurveysModule({
           id: `lst-${Date.now()}-${(prev.livestock?.length || 0) + 1}`,
           livestockName: "Goat",
           number: 4,
-          purpose: "Commercial"
+          purpose: "Sale"
         }
       ]
     }));
@@ -2069,17 +2154,17 @@ export default function BaselineSurveysModule({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-500">Prefill Member:</span>
-                  <label htmlFor="bsm-prefill-member-select" className="sr-only">Choose member to prefill profile and landholding</label>
+                  <span className="text-xs text-slate-500">Quick Select:</span>
+                  <label htmlFor="bsm-prefill-member-select" className="sr-only">Choose member to link farmer identity</label>
                   <select
                     id="bsm-prefill-member-select"
-                    aria-label="Choose member to prefill profile and landholding"
-                    onChange={(e) => handlePrefillFromFarmer(e.target.value)}
+                    aria-label="Choose member to link farmer identity"
+                    onChange={(e) => handleFarmerIdSelect(e.target.value)}
                     className="bsm-select-control"
-                    defaultValue=""
+                    value={formData.respondentId || formData.farmerId || ""}
                   >
-                    <option value="" disabled>Choose member to prefill...</option>
-                    {registeredFarmers.slice(0, 15).map(f => (
+                    <option value="" disabled>Select farmer...</option>
+                    {registeredFarmers.map(f => (
                       <option key={f.id} value={f.id}>
                         {f.name} ({f.id}) · {f.village}
                       </option>
@@ -2118,6 +2203,34 @@ export default function BaselineSurveysModule({
                         Assigned FPC · Locked
                       </span>
                     </div>
+                  </div>
+
+                  {/* Primary Farmer ID Selector */}
+                  <div className="bsm-form-group col-span-full">
+                    <label htmlFor="bsm-form-farmer-id" className="bsm-form-label font-bold text-slate-800 flex items-center justify-between">
+                      <span>Select Registered Farmer (Farmer ID) *</span>
+                      <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        Auto-fetches Farmer Name &amp; Mobile Number (Read-Only)
+                      </span>
+                    </label>
+                    <select
+                      id="bsm-form-farmer-id"
+                      className="bsm-form-input font-medium"
+                      value={formData.respondentId || formData.farmerId || ""}
+                      onChange={(e) => handleFarmerIdSelect(e.target.value)}
+                    >
+                      <option value="">-- Choose Registered Farmer by ID --</option>
+                      {registeredFarmers.map(f => (
+                        <option key={f.id} value={f.id}>
+                          {f.id} — {f.name} ({f.village ? `${f.village}, ` : ""}{f.block || "Registered Member"})
+                        </option>
+                      ))}
+                    </select>
+                    {!formData.respondentId && !formData.farmerId && (
+                      <p className="text-[11px] text-amber-600 mt-1 flex items-center gap-1">
+                        <AlertCircle size={12} /> Please select a registered Farmer ID to link the farmer identity.
+                      </p>
+                    )}
                   </div>
 
                   <div className="bsm-form-group">
@@ -2245,43 +2358,41 @@ export default function BaselineSurveysModule({
                     </select>
                   </div>
 
+                  {/* Read-Only Farmer Name (Captured in Farmer Registration) */}
                   <div className="bsm-form-group">
-                    <label htmlFor="bsm-form-farmer-name" className="bsm-form-label">11. Farmer Name *</label>
-                    <input
-                      id="bsm-form-farmer-name"
-                      type="text"
-                      className="bsm-form-input font-bold"
-                      value={formData.farmerName}
-                      onChange={(e) => setFormData(prev => ({ ...prev, farmerName: e.target.value }))}
-                      placeholder="Full Name"
-                    />
+                    <label className="bsm-form-label flex items-center justify-between">
+                      <span>11. Farmer Name (Read-Only)</span>
+                      <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">From Farmer Registry</span>
+                    </label>
+                    <div className="bsm-form-input bg-slate-100 text-slate-900 font-bold flex items-center justify-between">
+                      <span>{formData.farmerName || "— Select Farmer ID above —"}</span>
+                      <span className="text-[10px] uppercase font-semibold text-slate-500 bg-slate-200 px-1.5 py-0.5 rounded">Read-Only</span>
+                    </div>
                   </div>
 
+                  {/* Read-Only Mobile Number (Captured in Farmer Registration) */}
                   <div className="bsm-form-group">
-                    <label htmlFor="bsm-form-mobile" className="bsm-form-label">12. Mobile No. *</label>
-                    <input
-                      id="bsm-form-mobile"
-                      type="tel"
-                      className="bsm-form-input"
-                      value={formData.mobileNo}
-                      onChange={(e) => setFormData(prev => ({ ...prev, mobileNo: e.target.value }))}
-                      placeholder="10-digit mobile"
-                    />
+                    <label className="bsm-form-label flex items-center justify-between">
+                      <span>12. Mobile No. (Read-Only)</span>
+                      <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">From Farmer Registry</span>
+                    </label>
+                    <div className="bsm-form-input bg-slate-100 text-slate-900 font-mono flex items-center justify-between">
+                      <span>{formData.mobileNo || "—"}</span>
+                      <span className="text-[10px] uppercase font-semibold text-slate-500 bg-slate-200 px-1.5 py-0.5 rounded">Read-Only</span>
+                    </div>
                   </div>
 
                   <div className="bsm-form-group">
                     <label htmlFor="bsm-form-farmer-type" className="bsm-form-label">13. Type of Farmer *</label>
                     <select
                       id="bsm-form-farmer-type"
-                      className="bsm-form-input"
+                      className="bsm-form-input font-medium"
                       value={formData.typeOfFarmer || "Small"}
                       onChange={(e) => setFormData(prev => ({ ...prev, typeOfFarmer: e.target.value }))}
                     >
-                      <option value="Marginal">Marginal (&lt; 2.5 Acres)</option>
-                      <option value="Small">Small (2.5 – 5.0 Acres)</option>
-                      <option value="Medium">Medium (5.0 – 10.0 Acres)</option>
-                      <option value="Large">Large (&gt; 10.0 Acres)</option>
-                      <option value="Landless">Landless / Tenant</option>
+                      <option value="Small">Small</option>
+                      <option value="Marginal">Marginal</option>
+                      <option value="Big">Big</option>
                     </select>
                   </div>
                 </div>
@@ -2347,7 +2458,7 @@ export default function BaselineSurveysModule({
                 <div className="mt-3">
                   <span className="bsm-form-label block mb-1.5">17. Source of Irrigation (Select all that apply)</span>
                   <div className="flex items-center gap-3 flex-wrap">
-                    {["Pond", "Well", "Boring", "River", "Canal", "Other"].map(src => {
+                    {["Pond", "Well", "Boring", "River", "Nala", "Other"].map(src => {
                       const isChecked = (formData.sourceOfIrrigation || []).includes(src);
                       return (
                         <label key={src} className="flex items-center gap-1.5 text-xs text-slate-700 cursor-pointer">
@@ -2390,72 +2501,98 @@ export default function BaselineSurveysModule({
                       </tr>
                     </thead>
                     <tbody>
-                      {(formData.crops || []).map((crop, idx) => (
-                        <tr key={crop.id || idx}>
-                          <td>
-                            <label htmlFor={`bsm-crop-season-${idx}`} className="sr-only">Season for crop {idx + 1}</label>
-                            <select
-                              id={`bsm-crop-season-${idx}`}
-                              className="bsm-form-input"
-                              value={crop.season}
-                              onChange={(e) => handleCropRowChange(idx, "season", e.target.value)}
-                            >
-                              <option value="Kharif">Kharif</option>
-                              <option value="Rabi">Rabi</option>
-                              <option value="Jayad">Jayad</option>
-                              <option value="Perennial">Perennial</option>
-                            </select>
-                          </td>
-                          <td>
-                            <label htmlFor={`bsm-crop-name-${idx}`} className="sr-only">Crop Name for crop {idx + 1}</label>
-                            <input
-                              id={`bsm-crop-name-${idx}`}
-                              type="text"
-                              className="bsm-form-input"
-                              value={crop.cropName}
-                              onChange={(e) => handleCropRowChange(idx, "cropName", e.target.value)}
-                              placeholder="e.g. Paddy (Swarna), Wheat, Mustard"
-                            />
-                          </td>
-                          <td>
-                            <label htmlFor={`bsm-crop-area-${idx}`} className="sr-only">Area in acres for crop {idx + 1}</label>
-                            <input
-                              id={`bsm-crop-area-${idx}`}
-                              type="number"
-                              step="0.1"
-                              min="0"
-                              className="bsm-form-input font-mono"
-                              value={crop.areaAcre}
-                              onChange={(e) => handleCropRowChange(idx, "areaAcre", parseFloat(e.target.value) || 0)}
-                            />
-                          </td>
-                          <td>
-                            <label htmlFor={`bsm-crop-yield-${idx}`} className="sr-only">Estimated production in quintals for crop {idx + 1}</label>
-                            <input
-                              id={`bsm-crop-yield-${idx}`}
-                              type="number"
-                              step="0.5"
-                              min="0"
-                              className="bsm-form-input font-mono"
-                              value={crop.expectedProductionQtl || ""}
-                              onChange={(e) => handleCropRowChange(idx, "expectedProductionQtl", parseFloat(e.target.value) || 0)}
-                              placeholder="Optional"
-                            />
-                          </td>
-                          <td>
-                            {(formData.crops || []).length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveCropRow(idx)}
-                                className="text-red-500 hover:text-red-700 p-1"
-                                title="Remove Crop"
+                      {(formData.crops || []).map((crop, idx) => {
+                        const standardCrops = ["Paddy", "Wheat", "Mustard", "Maize", "Potato", "Pea", "Tomato", "Brinjal"];
+                        const isCustom = crop.cropName && !standardCrops.includes(crop.cropName);
+                        return (
+                          <tr key={crop.id || idx}>
+                            <td>
+                              <label htmlFor={`bsm-crop-season-${idx}`} className="sr-only">Season for crop {idx + 1}</label>
+                              <select
+                                id={`bsm-crop-season-${idx}`}
+                                className="bsm-form-input font-medium"
+                                value={crop.season === "Rabi" ? "Rabi" : "Kharif"}
+                                onChange={(e) => handleCropRowChange(idx, "season", e.target.value)}
                               >
-                                <Trash2 size={13} />
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                                <option value="Kharif">Kharif</option>
+                                <option value="Rabi">Rabi</option>
+                              </select>
+                            </td>
+                            <td>
+                              <label htmlFor={`bsm-crop-name-${idx}`} className="sr-only">Crop Name for crop {idx + 1}</label>
+                              <select
+                                id={`bsm-crop-name-${idx}`}
+                                className="bsm-form-input font-medium"
+                                value={isCustom ? "Other" : (crop.cropName || "Paddy")}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === "Other") {
+                                    handleCropRowChange(idx, "cropName", "");
+                                  } else {
+                                    handleCropRowChange(idx, "cropName", val);
+                                  }
+                                }}
+                              >
+                                <option value="Paddy">Paddy</option>
+                                <option value="Wheat">Wheat</option>
+                                <option value="Mustard">Mustard</option>
+                                <option value="Maize">Maize</option>
+                                <option value="Potato">Potato</option>
+                                <option value="Pea">Pea</option>
+                                <option value="Tomato">Tomato</option>
+                                <option value="Brinjal">Brinjal</option>
+                                <option value="Other">Other (Custom Crop)</option>
+                              </select>
+                              {(isCustom || crop.cropName === "") && (
+                                <input
+                                  type="text"
+                                  className="bsm-form-input mt-1.5"
+                                  value={crop.cropName}
+                                  onChange={(e) => handleCropRowChange(idx, "cropName", e.target.value)}
+                                  placeholder="Type custom crop name..."
+                                />
+                              )}
+                            </td>
+                            <td>
+                              <label htmlFor={`bsm-crop-area-${idx}`} className="sr-only">Area in acres for crop {idx + 1}</label>
+                              <input
+                                id={`bsm-crop-area-${idx}`}
+                                type="number"
+                                step="0.1"
+                                min="0"
+                                className="bsm-form-input font-mono font-bold"
+                                value={crop.areaAcre}
+                                onChange={(e) => handleCropRowChange(idx, "areaAcre", parseFloat(e.target.value) || 0)}
+                              />
+                            </td>
+                            <td>
+                              <label htmlFor={`bsm-crop-yield-${idx}`} className="sr-only">Estimated production in quintals for crop {idx + 1}</label>
+                              <input
+                                id={`bsm-crop-yield-${idx}`}
+                                type="number"
+                                step="0.5"
+                                min="0"
+                                className="bsm-form-input font-mono"
+                                value={crop.expectedProductionQtl || ""}
+                                onChange={(e) => handleCropRowChange(idx, "expectedProductionQtl", parseFloat(e.target.value) || 0)}
+                                placeholder="Optional"
+                              />
+                            </td>
+                            <td>
+                              {(formData.crops || []).length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveCropRow(idx)}
+                                  className="text-red-500 hover:text-red-700 p-1"
+                                  title="Remove Crop"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -2485,63 +2622,81 @@ export default function BaselineSurveysModule({
                       </tr>
                     </thead>
                     <tbody>
-                      {(formData.livestock || []).map((lst, idx) => (
-                        <tr key={lst.id || idx}>
-                          <td>
-                            <label htmlFor={`bsm-livestock-name-${idx}`} className="sr-only">Livestock Name for entry {idx + 1}</label>
-                            <select
-                              id={`bsm-livestock-name-${idx}`}
-                              className="bsm-form-input"
-                              value={lst.livestockName}
-                              onChange={(e) => handleLivestockRowChange(idx, "livestockName", e.target.value)}
-                            >
-                              <option value="Cow">Cow</option>
-                              <option value="Goat">Goat</option>
-                              <option value="Pig">Pig</option>
-                              <option value="Hen">Hen / Poultry</option>
-                              <option value="Buffalo">Buffalo</option>
-                              <option value="Duck">Duck</option>
-                              <option value="Other">Other</option>
-                            </select>
-                          </td>
-                          <td>
-                            <label htmlFor={`bsm-livestock-count-${idx}`} className="sr-only">Livestock Count for entry {idx + 1}</label>
-                            <input
-                              id={`bsm-livestock-count-${idx}`}
-                              type="number"
-                              min="0"
-                              className="bsm-form-input font-mono"
-                              value={lst.number}
-                              onChange={(e) => handleLivestockRowChange(idx, "number", parseInt(e.target.value) || 0)}
-                            />
-                          </td>
-                          <td>
-                            <label htmlFor={`bsm-livestock-purpose-${idx}`} className="sr-only">Livestock Purpose for entry {idx + 1}</label>
-                            <select
-                              id={`bsm-livestock-purpose-${idx}`}
-                              className="bsm-form-input"
-                              value={lst.purpose}
-                              onChange={(e) => handleLivestockRowChange(idx, "purpose", e.target.value)}
-                            >
-                              <option value="Self-consumption">Self-consumption</option>
-                              <option value="Commercial">Commercial</option>
-                              <option value="Mixed purpose">Mixed purpose</option>
-                            </select>
-                          </td>
-                          <td>
-                            {(formData.livestock || []).length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveLivestockRow(idx)}
-                                className="text-red-500 hover:text-red-700 p-1"
-                                title="Remove Livestock"
+                      {(formData.livestock || []).map((lst, idx) => {
+                        const standardLivestock = ["Cow", "Goat", "Pig", "Hen"];
+                        const isCustomLivestock = lst.livestockName && !standardLivestock.includes(lst.livestockName);
+                        const purposeVal = lst.purpose === "Sale" || lst.purpose === "Commercial" ? "Sale" : "Self";
+                        return (
+                          <tr key={lst.id || idx}>
+                            <td>
+                              <label htmlFor={`bsm-livestock-name-${idx}`} className="sr-only">Livestock Name for entry {idx + 1}</label>
+                              <select
+                                id={`bsm-livestock-name-${idx}`}
+                                className="bsm-form-input font-medium"
+                                value={isCustomLivestock ? "Other" : (lst.livestockName || "Cow")}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  if (val === "Other") {
+                                    handleLivestockRowChange(idx, "livestockName", "");
+                                  } else {
+                                    handleLivestockRowChange(idx, "livestockName", val);
+                                  }
+                                }}
                               >
+                                <option value="Cow">Cow</option>
+                                <option value="Goat">Goat</option>
+                                <option value="Pig">Pig</option>
+                                <option value="Hen">Hen</option>
+                                <option value="Other">Other</option>
+                              </select>
+                              {(isCustomLivestock || lst.livestockName === "") && (
+                                <input
+                                  type="text"
+                                  className="bsm-form-input mt-1.5"
+                                  value={lst.livestockName}
+                                  onChange={(e) => handleLivestockRowChange(idx, "livestockName", e.target.value)}
+                                  placeholder="Type livestock name..."
+                                />
+                              )}
+                            </td>
+                            <td>
+                              <label htmlFor={`bsm-livestock-count-${idx}`} className="sr-only">Livestock Count for entry {idx + 1}</label>
+                              <input
+                                id={`bsm-livestock-count-${idx}`}
+                                type="number"
+                                min="0"
+                                className="bsm-form-input font-mono font-bold"
+                                value={lst.number}
+                                onChange={(e) => handleLivestockRowChange(idx, "number", parseInt(e.target.value) || 0)}
+                              />
+                            </td>
+                            <td>
+                              <label htmlFor={`bsm-livestock-purpose-${idx}`} className="sr-only">Livestock Purpose for entry {idx + 1}</label>
+                              <select
+                                id={`bsm-livestock-purpose-${idx}`}
+                                className="bsm-form-input font-medium"
+                                value={purposeVal}
+                                onChange={(e) => handleLivestockRowChange(idx, "purpose", e.target.value)}
+                              >
+                                <option value="Self">Self</option>
+                                <option value="Sale">Sale</option>
+                              </select>
+                            </td>
+                            <td>
+                              {(formData.livestock || []).length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveLivestockRow(idx)}
+                                  className="text-red-500 hover:text-red-700 p-1"
+                                  title="Remove Livestock"
+                                >
                                 <Trash2 size={13} />
                               </button>
                             )}
                           </td>
                         </tr>
-                      ))}
+                      );
+                    })}
                     </tbody>
                   </table>
                 </div>
@@ -2808,6 +2963,7 @@ export default function BaselineSurveysModule({
                 <span className="text-xs font-bold text-emerald-900 uppercase tracking-wide block mb-2 border-b border-slate-200 pb-1">
                   1–13. Geographic &amp; Identification Details
                 </span>
+                <div className="bsm-kv-item"><small>Linked Farmer ID</small><strong className="font-mono text-emerald-800 font-bold">{selectedResponseForView.farmerId || selectedResponseForView.respondentId || "—"}</strong></div>
                 <div className="bsm-kv-item"><small>1. Sl No</small><strong>{selectedResponseForView.slNo || 1}</strong></div>
                 <div className="bsm-kv-item"><small>2. State</small><strong>{selectedResponseForView.state || "Odisha"}</strong></div>
                 <div className="bsm-kv-item"><small>3. District</small><strong>{selectedResponseForView.district || "Keonjhar"}</strong></div>
@@ -2818,7 +2974,7 @@ export default function BaselineSurveysModule({
                 <div className="bsm-kv-item"><small>8. Share Issue Date</small><strong>{selectedResponseForView.shareIssueDate || "2021-06-15"}</strong></div>
                 <div className="bsm-kv-item"><small>9. Social Category</small><strong>{selectedResponseForView.category || "General"}</strong></div>
                 <div className="bsm-kv-item"><small>10. Gender</small><strong>{selectedResponseForView.gender || "Male"}</strong></div>
-                <div className="bsm-kv-item"><small>11. Farmer Name</small><strong>{selectedResponseForView.farmerName || selectedResponseForView.respondentName}</strong></div>
+                <div className="bsm-kv-item"><small>11. Farmer Name</small><div><strong>{selectedResponseForView.farmerName || selectedResponseForView.respondentName}</strong><span className="text-[10px] text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded ml-1.5 border border-emerald-200 font-medium">Read-Only</span></div></div>
                 <div className="bsm-kv-item"><small>12. Mobile No.</small><strong className="font-mono">{selectedResponseForView.mobileNo || "—"}</strong></div>
                 <div className="bsm-kv-item"><small>13. Type of Farmer</small><strong>{selectedResponseForView.typeOfFarmer || "Small"}</strong></div>
               </div>
@@ -3074,6 +3230,36 @@ export default function BaselineSurveysModule({
             </div>
           </div>
         </div>
+      )}
+
+      {successModal?.isOpen && (
+        <RegistrationSuccessModal
+          isOpen={successModal.isOpen}
+          isEdit={successModal.isEdit}
+          registrationType="Baseline Survey Registration"
+          registrationId={successModal.record.id}
+          statusText={successModal.record.verificationStatus || "Submitted"}
+          statusBadgeVariant={successModal.record.verificationStatus === "Approved" ? "green" : "blue"}
+          summaryDetails={[
+            { label: "Respondent / Farmer", value: successModal.record.farmerName || successModal.record.respondentName },
+            { label: "Village & GP", value: `${successModal.record.village || "—"}, ${successModal.record.gp || "—"}` },
+            { label: "Total Landholding", value: `${successModal.record.totalLandAcre || 0} Acres`, highlight: true },
+            { label: "Primary Crop", value: successModal.record.crops?.[0]?.cropName || "Paddy" },
+            { label: "Social Category", value: successModal.record.category || "General" }
+          ]}
+          onViewDetails={() => {
+            const rec = successModal.record;
+            setSuccessModal(null);
+            setSelectedResponseForView(rec);
+          }}
+          onDone={() => {
+            setSuccessModal(null);
+          }}
+          onRegisterAnother={!successModal.isEdit ? () => {
+            setSuccessModal(null);
+            handleOpenNewSurveyForm();
+          } : undefined}
+        />
       )}
     </div>
   );

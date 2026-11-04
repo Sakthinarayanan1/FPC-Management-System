@@ -90,13 +90,14 @@ export interface FarmerLivestockRecord {
   id: string;
   livestockName: string;
   number: number;
-  purpose: "Self-consumption" | "Commercial" | "Mixed purpose" | string;
+  purpose: "Self" | "Sale" | "Self-consumption" | "Commercial" | "Mixed purpose" | string;
 }
 
 export interface FpcSurveyResponse {
   id: string;
   surveyId: string;
   fpcId: string;
+  farmerId?: string;
 
   // Actual Farmer Baseline Excel Format (All 28 Fields)
   slNo?: number | string;
@@ -111,7 +112,7 @@ export interface FpcSurveyResponse {
   gender?: "Male" | "Female" | "Other" | string;
   farmerName?: string;
   mobileNo?: string;
-  typeOfFarmer?: "Marginal" | "Small" | "Medium" | "Large" | "Landless" | string;
+  typeOfFarmer?: "Small" | "Marginal" | "Big" | "Medium" | "Large" | "Landless" | string;
   totalLandAcre?: number;
   irrigatedAcre?: number;
   nonIrrigatedAcre?: number;
@@ -145,6 +146,95 @@ export interface FpcSurveyResponse {
   verifiedAt?: string;
   approvalRemarks?: string;
   isSampleData?: boolean;
+}
+
+export interface FpcInvitation {
+  id: string; // e.g. "INV-2026-0001"
+  token: string;
+  adminName: string;
+  adminEmail: string;
+  adminMobile: string;
+  clusterDistrict?: string;
+  status:
+    | "Invitation Sent"
+    | "Link Generated"
+    | "Link Generated (Demo Mode)"
+    | "Invitation Opened"
+    | "Draft"
+    | "Submitted"
+    | "Under Review"
+    | "Correction Required"
+    | "Approved"
+    | "Rejected"
+    | "Expired"
+    | "Used";
+  invitedBy: string;
+  invitedAt: string;
+  expiresAt: string;
+  lastResentAt?: string;
+  resendCount: number;
+  applicationId?: string;
+  fpcId?: string;
+  notes?: string;
+  [key: string]: any;
+}
+
+export interface FpcApplication {
+  id: string; // e.g. "APP-FPC-2026-0001"
+  invitationId: string;
+  token: string;
+  companyName: string;
+  registrationNumber?: string;
+  cin?: string;
+  pan?: string;
+  tan?: string;
+  gstin?: string;
+  incorporationDate?: string;
+  orgType?: string;
+  registeredAddress?: string;
+  state: string;
+  district: string;
+  block?: string;
+  village?: string;
+  pinCode?: string;
+  directors: Array<{
+    name: string;
+    din?: string;
+    pan?: string;
+    designation: string;
+    appointmentDate?: string;
+    mobile?: string;
+    email?: string;
+  }>;
+  operationalInfo: {
+    primary?: string;
+    secondary?: string[];
+    commodities?: string;
+    membersCount?: number;
+    villagesCovered?: number;
+    godownsCount?: number;
+    description?: string;
+  };
+  bankAccounts: Array<{
+    bankName: string;
+    accountHolderName: string;
+    accountNumber: string;
+    ifscCode: string;
+    branchName: string;
+    accountType?: string;
+    isPrimary?: boolean;
+  }>;
+  documents: Record<string, string>;
+  status: string;
+  submittedAt?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  correctionRemarks?: string;
+  rejectionReason?: string;
+  approvalRemarks?: string;
+  createdAt: string;
+  updatedAt: string;
+  [key: string]: any;
 }
 
 export interface OfficialCompanyRegistration {
@@ -231,6 +321,7 @@ export type State = {
 };
 const fpcId = "FPC-ODI-001";
 const farmerSeeds = [
+  ["F-DEMO-01", "Krishna Munda", "Panarol", "3.0", "Paddy (Swarna), Wheat, Mustard", "Verified", "SH-DEMO-01"],
   ["F-001", "Ravi Kumar", "Green Valley", "2.0", "Paddy", "Verified", "SH-001"],
   ["F-002", "Sita Devi", "Green Valley", "1.5", "Paddy, Vegetables", "Verified", "SH-002"],
   ["F-003", "Mohan Munda", "Pitamahal", "3.2", "Paddy, Maize", "Verified", ""],
@@ -1080,16 +1171,16 @@ export const initialSurveyResponses: FpcSurveyResponse[] = [
     totalLandAcre: 3.0,
     irrigatedAcre: 1.0,
     nonIrrigatedAcre: 2.0,
-    sourceOfIrrigation: ["Pond", "Well", "Boring", "River", "Canal", "Other"],
+    sourceOfIrrigation: ["Pond", "Well", "Boring", "River", "Nala", "Other"],
     crops: [
-      { id: "crp-1", season: "Kharif", cropName: "Paddy (Swarna)", areaAcre: 1.5, expectedProductionQtl: 28 },
-      { id: "crp-2", season: "Rabi", cropName: "Wheat (Sonalika)", areaAcre: 1.0, expectedProductionQtl: 14 },
-      { id: "crp-3", season: "Jayad", cropName: "Mustard", areaAcre: 0.5, expectedProductionQtl: 5 }
+      { id: "crp-1", season: "Kharif", cropName: "Paddy", areaAcre: 1.5, expectedProductionQtl: 28 },
+      { id: "crp-2", season: "Rabi", cropName: "Wheat", areaAcre: 1.0, expectedProductionQtl: 14 },
+      { id: "crp-3", season: "Rabi", cropName: "Mustard", areaAcre: 0.5, expectedProductionQtl: 5 }
     ],
     livestock: [
-      { id: "lst-1", livestockName: "Cow", number: 2, purpose: "Mixed purpose" },
-      { id: "lst-2", livestockName: "Goat", number: 4, purpose: "Commercial" },
-      { id: "lst-3", livestockName: "Hen", number: 10, purpose: "Self-consumption" }
+      { id: "lst-1", livestockName: "Cow", number: 2, purpose: "Self" },
+      { id: "lst-2", livestockName: "Goat", number: 4, purpose: "Sale" },
+      { id: "lst-3", livestockName: "Hen", number: 10, purpose: "Self" }
     ],
     plantation: "Yes",
     plantationAreaAcre: 0.5,
@@ -1103,6 +1194,7 @@ export const initialSurveyResponses: FpcSurveyResponse[] = [
     ntfpActivities: ["Sal Leaf", "Mahua"],
     dairy: "1 cow · 4 litres/day",
     dairyDailyLiters: 4,
+    farmerId: "F-DEMO-01",
     respondentId: "F-DEMO-01",
     respondentName: "Krishna Munda",
     respondentVillage: "Panarol",
@@ -1580,16 +1672,16 @@ export const initialSurveyResponses: FpcSurveyResponse[] = [
     totalLandAcre: 3.0,
     irrigatedAcre: 1.0,
     nonIrrigatedAcre: 2.0,
-    sourceOfIrrigation: ["Pond", "Well", "Boring"],
+    sourceOfIrrigation: ["Pond", "Well", "Boring", "River", "Nala", "Other"],
     crops: [
-      { id: "crp-j1", season: "Kharif", cropName: "Paddy (Swarna)", areaAcre: 1.5, expectedProductionQtl: 28 },
-      { id: "crp-j2", season: "Rabi", cropName: "Wheat (Sonalika)", areaAcre: 1.0, expectedProductionQtl: 14 },
-      { id: "crp-j3", season: "Jayad", cropName: "Mustard", areaAcre: 0.5, expectedProductionQtl: 5 }
+      { id: "crp-j1", season: "Kharif", cropName: "Paddy", areaAcre: 1.5, expectedProductionQtl: 28 },
+      { id: "crp-j2", season: "Rabi", cropName: "Wheat", areaAcre: 1.0, expectedProductionQtl: 14 },
+      { id: "crp-j3", season: "Rabi", cropName: "Mustard", areaAcre: 0.5, expectedProductionQtl: 5 }
     ],
     livestock: [
-      { id: "lst-j1", livestockName: "Cow", number: 2, purpose: "Mixed purpose" },
-      { id: "lst-j2", livestockName: "Goat", number: 4, purpose: "Commercial" },
-      { id: "lst-j3", livestockName: "Hen", number: 10, purpose: "Self-consumption" }
+      { id: "lst-j1", livestockName: "Cow", number: 2, purpose: "Self" },
+      { id: "lst-j2", livestockName: "Goat", number: 4, purpose: "Sale" },
+      { id: "lst-j3", livestockName: "Hen", number: 10, purpose: "Self" }
     ],
     plantation: "Yes",
     plantationAreaAcre: 0.5,
@@ -1603,6 +1695,7 @@ export const initialSurveyResponses: FpcSurveyResponse[] = [
     ntfpActivities: ["Sal Leaf", "Mahua"],
     dairy: "1 cow · 4 litres/day",
     dairyDailyLiters: 4,
+    farmerId: "F-DEMO-01",
     respondentId: "F-DEMO-01",
     respondentName: "Krishna Munda",
     respondentVillage: "Panarol",
@@ -1615,6 +1708,161 @@ export const initialSurveyResponses: FpcSurveyResponse[] = [
     isSampleData: true
   }
 ];
+
+export const initialFpcInvitations: FpcInvitation[] = [
+  {
+    id: "INV-2026-0001",
+    token: "inv_sec_demo_sundargarh_4f8a9e2b1c",
+    adminName: "Subhashree Pradhan",
+    adminEmail: "subhashree.pradhan@sundargarhfpc.in",
+    adminMobile: "9437118822",
+    clusterDistrict: "Bonai Tribal Cluster, Sundargarh",
+    status: "Submitted",
+    invitedBy: "TSF Central Admin",
+    invitedAt: "28 Oct 2026 · 10:30 AM",
+    expiresAt: "04 Nov 2026 · 10:30 AM",
+    resendCount: 0,
+    applicationId: "APP-FPC-2026-0001",
+    notes: "Bonai tribal belt aggregation initiative",
+  },
+  {
+    id: "INV-2026-0002",
+    token: "inv_sec_demo_ranchi_9a7b6c5d4e",
+    adminName: "Manoj Soren",
+    adminEmail: "manoj.soren@ranchiorganic.in",
+    adminMobile: "9835227744",
+    clusterDistrict: "Ormanjhi Organic Cluster, Ranchi",
+    status: "Invitation Sent",
+    invitedBy: "TSF Central Admin",
+    invitedAt: "01 Nov 2026 · 14:15 PM",
+    expiresAt: "08 Nov 2026 · 14:15 PM",
+    resendCount: 0,
+    notes: "Organic vegetable cluster near Kanke",
+  },
+  {
+    id: "INV-2026-0003",
+    token: "inv_sec_demo_dhenkanal_3c4d5e6f7a",
+    adminName: "Priyabrata Sahoo",
+    adminEmail: "priyabrata@dhenkanalagri.in",
+    adminMobile: "9438001199",
+    clusterDistrict: "Kamakshyanagar Agri Belt, Dhenkanal",
+    status: "Correction Required",
+    invitedBy: "TSF Central Admin",
+    invitedAt: "25 Oct 2026 · 11:00 AM",
+    expiresAt: "05 Nov 2026 · 11:00 AM",
+    resendCount: 1,
+    lastResentAt: "30 Oct 2026 · 09:30 AM",
+    applicationId: "APP-FPC-2026-0002",
+    notes: "Clarification required on minimum 5 directors",
+  },
+];
+
+export const initialFpcApplications: FpcApplication[] = [
+  {
+    id: "APP-FPC-2026-0001",
+    invitationId: "INV-2026-0001",
+    token: "inv_sec_demo_sundargarh_4f8a9e2b1c",
+    companyName: "Sundargarh Tribal Agro Producer Company Ltd.",
+    registrationNumber: "049812",
+    cin: "U01100OD2024PTC049812",
+    pan: "AAACS9981K",
+    tan: "BBNS99812L",
+    gstin: "21AAACS9981K1Z4",
+    incorporationDate: "2024-03-12",
+    orgType: "Producer Company under Section 378A of Companies Act 2013",
+    registeredAddress: "At/Po Lahunipara, Bonai Subdivision, Sundargarh, Odisha 770040",
+    state: "Odisha",
+    district: "Sundargarh",
+    block: "Lahunipara",
+    village: "Lahunipara",
+    pinCode: "770040",
+    directors: [
+      { name: "Subhashree Pradhan", din: "09823411", designation: "Managing Director", appointmentDate: "2024-03-12", mobile: "9437118822", email: "subhashree@sundargarhfpc.in" },
+      { name: "Birsa Oram", din: "09823412", designation: "Chairperson", appointmentDate: "2024-03-12", mobile: "9437118823", email: "birsa@sundargarhfpc.in" },
+      { name: "Mangal Munda", din: "09823413", designation: "Director", appointmentDate: "2024-03-12", mobile: "9437118824", email: "mangal@sundargarhfpc.in" },
+      { name: "Sukanti Minz", din: "09823414", designation: "Director", appointmentDate: "2024-03-12", mobile: "9437118825", email: "sukanti@sundargarhfpc.in" },
+      { name: "Dharanidhar Kisan", din: "09823415", designation: "Director", appointmentDate: "2024-03-12", mobile: "9437118826", email: "dharani@sundargarhfpc.in" },
+    ],
+    operationalInfo: {
+      primary: "Produce Procurement",
+      secondary: ["Agricultural Input Supply", "Storage and Warehousing"],
+      commodities: "Millets (Ragi, Kodo), Forest Produce, Pulses",
+      membersCount: 160,
+      villagesCovered: 18,
+      godownsCount: 2,
+    },
+    bankAccounts: [
+      { bankName: "State Bank of India", accountHolderName: "Sundargarh Tribal Agro Producer Company Ltd.", accountNumber: "40981234567", ifscCode: "SBIN0001245", branchName: "Lahunipara", accountType: "Current", isPrimary: true }
+    ],
+    documents: {
+      incorporationCert: "incorporation-cert.pdf",
+      panCard: "pan-card.pdf",
+      cancelledCheque: "cancelled-cheque.pdf",
+      boardResolution: "board-resolution.pdf"
+    },
+    status: "Submitted",
+    submittedAt: "02 Nov 2026 · 16:45",
+    createdAt: "28 Oct 2026 · 11:20",
+    updatedAt: "02 Nov 2026 · 16:45",
+  },
+  {
+    id: "APP-FPC-2026-0002",
+    invitationId: "INV-2026-0003",
+    token: "inv_sec_demo_dhenkanal_3c4d5e6f7a",
+    companyName: "Dhenkanal Mango & Vegetable Growers FPC Ltd.",
+    registrationNumber: "048123",
+    cin: "U01100OD2023PTC048123",
+    pan: "AAACD8876P",
+    tan: "BBND88761M",
+    gstin: "21AAACD8876P1Z8",
+    incorporationDate: "2023-08-15",
+    orgType: "Producer Company under Section 378A of Companies Act 2013",
+    registeredAddress: "Gondia Block, Dhenkanal, Odisha 759016",
+    state: "Odisha",
+    district: "Dhenkanal",
+    block: "Gondia",
+    village: "Karamul",
+    pinCode: "759016",
+    directors: [
+      { name: "Priyabrata Sahoo", din: "08761234", designation: "Managing Director", appointmentDate: "2023-08-15", mobile: "9438001199", email: "priyabrata@dhenkanalagri.in" },
+      { name: "Rabindra Samal", din: "08761235", designation: "Chairperson", appointmentDate: "2023-08-15", mobile: "9438001198", email: "rabindra@dhenkanalagri.in" },
+    ],
+    operationalInfo: {
+      primary: "Produce Marketing",
+      commodities: "Amrapali Mango, Okra, Brinjal, Chilli",
+      membersCount: 110,
+    },
+    bankAccounts: [
+      { bankName: "Punjab National Bank", accountHolderName: "Dhenkanal Mango & Vegetable Growers FPC Ltd.", accountNumber: "1928002100049", ifscCode: "PUNB0192800", branchName: "Gondia", accountType: "Current", isPrimary: true }
+    ],
+    documents: {
+      incorporationCert: "dhenkanal-incorporation.pdf"
+    },
+    status: "Correction Required",
+    correctionRemarks: "Please provide a minimum of 5 directors as required for a Producer Company, and upload the cancelled bank cheque.",
+    createdAt: "26 Oct 2026 · 14:00",
+    updatedAt: "30 Oct 2026 · 10:15",
+  }
+];
+
+export function generatePermanentFpcId(allFpcs: RecordRow[] = [], stateName = "Odisha"): string {
+  const normState = (stateName || "").trim().toLowerCase();
+  const stateCode = normState.includes("jharkhand") ? "JHK" : normState.includes("odisha") || normState.includes("orissa") ? "ODI" : "IND";
+  const prefix = `FPC-${stateCode}-`;
+  
+  let maxSeq = 0;
+  for (const fpc of allFpcs) {
+    const candidateId = String(fpc.fpcId || fpc.id || "");
+    if (candidateId.startsWith(prefix)) {
+      const numPart = parseInt(candidateId.slice(prefix.length), 10);
+      if (!isNaN(numPart) && numPart > maxSeq) {
+        maxSeq = numPart;
+      }
+    }
+  }
+  const nextSeq = maxSeq + 1;
+  return `${prefix}${String(nextSeq).padStart(3, "0")}`;
+}
 
 const seed: State = {
   role: null, memberId: "F-001", language: "English", offline: false,
@@ -1646,8 +1894,27 @@ const seed: State = {
     godowns: [{ id: "GOD-01", name: "Main Godown Keonjhar", capacity: "500 tonne", used: 61, location: "Keonjhar", address: "Plot No. 12, Industrial Estate, Keonjhar Sadar, Keonjhar, Odisha 758001", manager: "Sanjay Tudu", phone: "+91 9437004412" }, { id: "GOD-02", name: "Satellite Godown Pitamahal", capacity: "120 tonne", used: 38, location: "Pitamahal", address: "Near Gram Panchayat Bhavan, Pitamahal, Telkoi, Keonjhar, Odisha 758019", manager: "Suman Naik", phone: "+91 9437005523" }],
     filings: [{ id: "FIL-01", name: "AGM", due: "30 Sep 2026", status: "Filed · 21 Sep 2026", adminStatus: "Approved", filedBy: "Rakesh Hembram" }, { id: "FIL-02", name: "Form AOC-4", due: "20 Oct 2026", status: "Filed", adminStatus: "Pending review", filedBy: "Rakesh Hembram" }, { id: "FIL-03", name: "Form MGT-7A", due: "20 Nov 2026", status: "Due soon", filedBy: "" }, { id: "FIL-04", name: "Income tax return ITR-6", due: "31 Oct 2026", status: "Due soon", filedBy: "" }, { id: "FIL-05", name: "GST GSTR-3B · September", due: "20 Oct 2026", status: "Overdue", filedBy: "" }, { id: "FIL-06", name: "Statutory audit report", due: "15 Dec 2026", status: "Pending", filedBy: "" }],
     fpcs: fpclist,
-    expenses: [{ id: "EXP-01", name: "Transport", amount: 115000, status: "Approved" }, { id: "EXP-02", name: "Godown rent", amount: 60000, status: "Approved" }, { id: "EXP-03", name: "Salaries", amount: 120000, status: "Approved" }, { id: "EXP-04", name: "Electricity", amount: 25000, status: "Approved" }, { id: "EXP-009", name: "Transport expense", amount: 8400, status: "Submitted", submittedBy: "Pooja Nayak", date: "26 Oct 2026", fpcId }],
-    payments: [{ id: "PAY-0007", farmer: "Ravi Kumar", farmerId: "F-001", purchaseId: "PUR-2026-0001", amount: 25000, date: "12 Oct 2026", method: "Bank transfer", reference: "UTIB2026101200451", status: "Paid" }],
+    expenses: [
+      { id: "EXP-01", name: "Produce Transport & Logistics", party: "Manoj Transports", amount: 115000, date: "15 Oct 2026", status: "Approved", voucher: "VCH-EXP-001", paymentMode: "Bank transfer", fpcId },
+      { id: "EXP-02", name: "Godown & Aggregation Yard Rent", party: "Central Godown Yard", amount: 60000, date: "18 Oct 2026", status: "Approved", voucher: "VCH-EXP-002", paymentMode: "Bank transfer", fpcId },
+      { id: "EXP-03", name: "Staff & Field Mobilizer Salaries", party: "FPC Staff Roster", amount: 120000, date: "20 Oct 2026", status: "Approved", voucher: "VCH-EXP-003", paymentMode: "Direct Bank Transfer", fpcId },
+      { id: "EXP-04", name: "Electricity & Cold Chain Utilities", party: "TPCODL Power Corp", amount: 25000, date: "22 Oct 2026", status: "Approved", voucher: "VCH-EXP-004", paymentMode: "Online Transfer", fpcId },
+      { id: "EXP-005", name: "Weighbridge Calibration & Maintenance", party: "Precision Weigh Systems", amount: 4500, date: "24 Oct 2026", status: "Approved", voucher: "VCH-EXP-005", paymentMode: "Cash", fpcId },
+      { id: "EXP-009", name: "Local Procurement Transport", party: "Pooja Nayak", amount: 8400, status: "Submitted", submittedBy: "Pooja Nayak", date: "26 Oct 2026", voucher: "VCH-EXP-009", paymentMode: "Cash", fpcId }
+    ],
+    payments: [
+      { id: "PAY-0001", farmer: "Ravi Kumar", farmerId: "F-001", purchaseId: "PUR-2026-0001", amount: 25000, date: "14 Oct 2026", method: "Bank transfer", reference: "UTIB2026101200451", status: "Paid", fpcId },
+      { id: "PAY-0002", farmer: "Sita Devi", farmerId: "F-002", purchaseId: "PUR-2026-0002", amount: 18500, date: "16 Oct 2026", method: "Bank transfer", reference: "SBIN2026101600291", status: "Paid", fpcId },
+      { id: "PAY-0003", party: "Utkal Agro Inputs Pvt Ltd", supplierId: "SUP-001", purchaseId: "PUR-IN-2026-0009", amount: 150000, date: "18 Oct 2026", method: "RTGS", reference: "RTGS2026101809142", status: "Paid", fpcId },
+      { id: "PAY-0004", party: "Central Aggregation Yard", amount: 12000, date: "20 Oct 2026", method: "Cash", reference: "CSH-2026-1020", status: "Paid", fpcId },
+      { id: "PAY-0005", party: "Manoj Transports", amount: 8400, date: "22 Oct 2026", method: "Cash", reference: "CSH-2026-1022", status: "Paid", fpcId },
+      { id: "PAY-0006", farmer: "Mohan Munda", farmerId: "F-003", purchaseId: "PUR-2026-0003", amount: 21000, date: "24 Oct 2026", method: "NEFT", reference: "NEFT2026102400114", status: "Paid", fpcId },
+      { id: "PAY-0007", farmer: "Ravi Kumar", farmerId: "F-001", purchaseId: "PUR-2026-0001", amount: 25000, date: "12 Oct 2026", method: "Bank transfer", reference: "UTIB2026101200451", status: "Paid", fpcId },
+      { id: "PAY-0008", farmer: "Gopal Sahoo", farmerId: "F-005", purchaseId: "PUR-2026-0005", amount: 32000, date: "27 Oct 2026", method: "Direct Bank Transfer", reference: "UTIB2026102700891", status: "Paid", fpcId },
+      { id: "PAY-0009", party: "Green Valley Agro Labour Group", amount: 6500, date: "28 Oct 2026", method: "Cash", reference: "CSH-2026-1028", status: "Paid", fpcId },
+      { id: "PAY-0010", party: "Precision Weigh Systems", amount: 4500, date: "29 Oct 2026", method: "Cash", reference: "CSH-2026-1029", status: "Paid", fpcId },
+      { id: "PAY-0011", farmer: "Birsa Soren", farmerId: "F-007", purchaseId: "PUR-2026-0007", amount: 27500, date: "30 Oct 2026", method: "NEFT", reference: "NEFT2026103000823", status: "Paid", fpcId }
+    ],
     ledger: [{ id: "LED-001", farmer: "Ravi Kumar", farmerId: "F-001", date: "12 Oct 2026", description: "Paddy purchase · PUR-2026-0001", debit: 0, credit: 25000, balance: 25000 }, { id: "LED-002", farmer: "Ravi Kumar", farmerId: "F-001", date: "14 Oct 2026", description: "Bank transfer · UTIB2026101200451 · PAY-0007", debit: 25000, credit: 0, balance: 0 }, ...Array.from({ length: 58 }, (_, i) => ({ id: `LED-${String(i + 3).padStart(3, "0")}`, farmer: farmerSeeds[(i + 1) % 8][1], farmerId: farmerSeeds[(i + 1) % 8][0], date: `${String(2 + (i % 26)).padStart(2, "0")} ${["Nov 2025", "Dec 2025", "Jan 2026", "Feb 2026", "Mar 2026", "Apr 2026", "May 2026", "Jun 2026", "Jul 2026", "Aug 2026", "Sep 2026", "Oct 2026"][i % 12]}`, description: ["Produce purchase", "Bank transfer payment", "Input credit recovery"][i % 3], debit: i % 3 === 0 ? 12500 : 0, credit: i % 3 === 1 ? 12500 : 0, balance: 0 }))],
     meetings: [{ id: "MTG-01", name: "Annual General Meeting", date: "21 Sep 2027 · 11:00 AM", venue: "Community Hall Green Valley", status: "Upcoming", note: "Annual accounts and audit report · board representatives · season procurement" }, { id: "MTG-02", name: "Annual General Meeting", date: "21 Sep 2026", venue: "Community Hall Green Valley", status: "Completed", note: "One member, one vote" }],
     documents: [{ id: "DOC-01", name: "Company incorporation certificate", category: "Incorporation", updated: "14 Jun 2021" }, { id: "DOC-02", name: "SBI bank confirmation", category: "Bank", updated: "02 Aug 2026" }],
@@ -1679,16 +1946,22 @@ const seed: State = {
     surveys: initialSurveys,
     surveyResponses: initialSurveyResponses,
     purchaseOrders: samplePurchaseOrders,
+    fpcInvitations: initialFpcInvitations as unknown as RecordRow[],
+    fpcApplications: initialFpcApplications as unknown as RecordRow[],
   },
   audit: Array.from({ length: 82 }, (_, i) => ({ id: `AUD-${String(i + 1).padStart(3, "0")}`, actor: ["Anita Das", "Pooja Nayak", "Bijay Kumar Mohanty", "Rakesh Hembram"][i % 4], role: ["Accountant / Finance Officer", "Data Entry Operator", "FPC Admin / Manager", "Compliance / Documentation Officer"][i % 4], action: ["approved payment PAY-0007", "edited farmer F-014 mobile", "rejected purchase PUR-2026-0023: rate above limit", "updated filing record"][i % 4], module: ["Finance", "Farmers", "Purchases", "Compliance"][i % 4], record: ["PAY-0007", "F-014", "PUR-2026-0023", "FIL-05"][i % 4], oldValue: ["Submitted", "98XXXX1100", "Submitted · Rs 84,750", "Overdue"][i % 4], newValue: ["Approved", "98XXXX4412", "Rejected · rate above limit", "GSTR-3B September · follow-up"][i % 4], date: `${String(1 + i % 28).padStart(2, "0")} Oct 2026 · ${String(9 + i % 8).padStart(2, "0")}:${String((i * 13) % 60).padStart(2, "0")}`, fpcId })),
   notifications: [{ id: "NT-01", title: "3 purchase entries waiting for approval", date: "Today", status: "Unread" }, { id: "NT-02", title: "Stock of Arhar is below threshold", date: "Today", status: "Unread" }],
   syncQueue: [{ id: "SYNC-01", type: "Farmer registration", record: "New farmer · Pitamahal", status: "Pending sync" }, { id: "SYNC-02", type: "Farmer registration", record: "New farmer · Telkoi", status: "Pending sync" }, { id: "SYNC-03", type: "Baseline survey", record: "Kharif 2026 · Green Valley", status: "Pending sync" }, { id: "SYNC-04", type: "Gallery photo", record: "Procurement drive", status: "Pending sync" }, { id: "SYNC-05", type: "Farmer registration", record: "Mobile 98XXXX1234", status: "Failed", reason: "Duplicate mobile number" }],
 };
-for (const rows of Object.values(seed.records)) rows.forEach(row => { if (!row.fpcId) row.fpcId = fpcId; });
+for (const [key, rows] of Object.entries(seed.records)) {
+  if (key !== "fpcInvitations" && key !== "fpcApplications") {
+    rows.forEach(row => { if (!row.fpcId) row.fpcId = fpcId; });
+  }
+}
 seed.audit.forEach(row => { if (!row.fpcId) row.fpcId = fpcId; });
 seed.notifications.forEach(row => { if (!row.fpcId) row.fpcId = fpcId; });
 seed.syncQueue.forEach(row => { if (!row.fpcId) row.fpcId = fpcId; });
-const STORAGE_KEY = "fpc-management-demo-v2";
+const STORAGE_KEY = "fpc-management-demo-v3";
 const freshSeed = (): State => JSON.parse(JSON.stringify(seed)) as State;
 const mergeRows = (baseRows: RecordRow[] = [], savedRows: RecordRow[] = []) => { const savedById = new Map(savedRows.map(row => [row.id, row])); const seedIds = new Set(baseRows.map(row => row.id)); return [...baseRows.map(row => ({ ...row, ...(savedById.get(row.id) || {}) })), ...savedRows.filter(row => !seedIds.has(row.id))] };
 type DemoStore = {

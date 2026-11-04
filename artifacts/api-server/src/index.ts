@@ -1,5 +1,13 @@
+import { loadEnv } from "./lib/env";
 import app from "./app";
 import { logger } from "./lib/logger";
+
+const envResult = loadEnv();
+if (envResult.loaded) {
+  logger.info({ envPath: envResult.envPath }, "Loaded environment variables from file");
+} else {
+  logger.info("No .env file found; using system/container environment variables");
+}
 
 const rawPort = process.env["PORT"] || "5000";
 const port = Number(rawPort);

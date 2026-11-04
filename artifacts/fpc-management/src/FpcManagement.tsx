@@ -26,6 +26,7 @@ import {
   RefreshCw,
   Save,
   Search,
+  Send,
   ShieldAlert,
   ShieldCheck,
   Trash2,
@@ -40,6 +41,8 @@ import * as XLSX from "xlsx";
 import type { RecordRow, State } from "@/lib/store";
 import AccessDenied from "./AccessDenied";
 import FpcWorkspace from "./FpcWorkspace";
+import TsfInviteModal from "./components/onboarding/TsfInviteModal";
+import OnboardingPipelineTable from "./components/onboarding/OnboardingPipelineTable";
 import "./fpc-management.css";
 
 type Props = {
@@ -50,6 +53,7 @@ type Props = {
   setToast: (message: string) => void;
   go: (screen: string) => void;
   initialFpcId?: string;
+  initialMode?: "wizard" | "pipeline" | "directory";
 };
 
 type Obj = Record<string, any>;
@@ -578,6 +582,7 @@ export default function FpcManagement({
   setToast,
   go,
   initialFpcId,
+  initialMode,
 }: Props) {
   if (role !== "TSF Central Admin") {
     return (
@@ -613,7 +618,7 @@ export default function FpcManagement({
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<Obj>(() => withDetails(gv(state)));
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(() => initialMode === "wizard");
   const [sectionMode, setSectionMode] = useState<"edit" | "view">("edit");
   const [profileTab, setProfileTab] = useState<"details" | "history" | "statusHistory">("details");
   const [historyFilter, setHistoryFilter] = useState("");
@@ -622,6 +627,20 @@ export default function FpcManagement({
   const [pendingSave, setPendingSave] = useState(false);
   const [viewDocsFpc, setViewDocsFpc] = useState<RecordRow | null>(null);
   const [activeProfileFpc, setActiveProfileFpc] = useState<RecordRow | null>(null);
+  const [managementTab, setManagementTab] = useState<"directory" | "pipeline">(() => {
+    if (/onboard|pending|approval/i.test(screen)) return "pipeline";
+    return "directory";
+  });
+  const [inviteModalOpen, setInviteModalOpen] = useState(() => /onboard|new fpc|add fpc/i.test(screen));
+
+  useEffect(() => {
+    if (/onboard|pending|approval/i.test(screen)) {
+      setManagementTab("pipeline");
+      if (/onboard|new fpc|add fpc/i.test(screen)) {
+        setInviteModalOpen(true);
+      }
+    }
+  }, [screen]);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const current = useMemo(
@@ -2380,8 +2399,8 @@ export default function FpcManagement({
     );
   }
 
-  // WIZARD EDITING MODE (8-STEP WIZARD)
-  if (isEditing || (isTsf && /onboard|new fpc|add fpc/i.test(screen))) {
+  // WIZARD EDITING MODE (For onboarding a new company or editing an existing company record)
+  if (isEditing) {
     return (
       <main className="fm-root">
         <header className="fm-header">
@@ -2519,15 +2538,26 @@ export default function FpcManagement({
       <header className="fm-header">
         <div>
           <span className="fm-eyebrow">TSF CENTRAL • PRODUCER COMPANY NETWORK</span>
-          <h1>{isPendingQueue ? "Pending FPC Approvals" : "FPC Management & Directory"}</h1>
+          <h1>
+            {managementTab === "pipeline" || isPendingQueue
+              ? "FPC Onboarding Pipeline & Approvals"
+              : "FPC Management & Directory"}
+          </h1>
           <p>
-            {isPendingQueue
-              ? "Verify submitted FPC registrations, review compliance records, and approve or request clarification."
+            {managementTab === "pipeline" || isPendingQueue
+              ? "Track invitation links, review company self-registration applications, request clarifications, and approve."
               : "Register, onboard, review, approve, edit, and manage all partner Farmer Producer Companies."}
           </p>
         </div>
         <div className="fm-header-actions">
-          {!isPendingQueue && (
+          <button
+            type="button"
+            className="fm-button primary"
+            onClick={() => setInviteModalOpen(true)}
+          >
+            <Send size={14} /> Onboard New FPC
+          </button>
+          {managementTab === "directory" && !isPendingQueue && (
             <>
               <button type="button" className="fm-button secondary" onClick={exportFpcListExcel} title="Export FPC List to Excel">
                 <FileSpreadsheet size={14} style={{ color: "#166534" }} /> Export Excel
@@ -2538,24 +2568,45 @@ export default function FpcManagement({
               <button type="button" className="fm-button secondary" onClick={downloadTemplate}>
                 <Download size={14} /> Template
               </button>
-              <label className="fm-button secondary fm-upload-btn">
-                <Upload size={14} /> Import
-                <input
-                  type="file"
-                  accept=".xlsx,.xls,.csv,.tsv"
-                  onChange={importFile}
-                />
-              </label>
-              <button type="button" className="fm-button primary" onClick={() => openEditor()}>
-                <Plus size={15} /> Onboard New FPC
-              </button>
             </>
           )}
         </div>
       </header>
 
-      {/* Network Overview Metric Strip */}
-      <div className="fm-network-strip">
+      {/* Mode Navigation Tabs */}
+      <div style={{ display: "flex", gap: 8, borderBottom: "1px solid #e2e8f0", paddingBottom: 10 }}>
+        <button
+          type="button"
+          onClick={() => setManagementTab("directory")}
+          className={`fm-button ${managementTab === "directory" ? "primary" : "secondary"}`}
+          style={{ fontSize: 12, fontWeight: 700 }}
+        >
+          Active FPC Directory ({allRows.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setManagementTab("pipeline")}
+          className={`fm-button ${managementTab === "pipeline" ? "primary" : "secondary"}`}
+          style={{ fontSize: 12, fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 6 }}
+        >
+          <span>Onboarding Pipeline &amp; Invitations</span>
+          <span style={{ background: managementTab === "pipeline" ? "rgba(255,255,255,0.25)" : "#e2e8f0", padding: "1px 6px", borderRadius: 10, fontSize: 11 }}>
+            {((state.records.fpcInvitations || []).length)}
+          </span>
+        </button>
+      </div>
+
+      {managementTab === "pipeline" ? (
+        <OnboardingPipelineTable
+          state={state}
+          setState={setState}
+          setToast={setToast}
+          onOpenInviteModal={() => setInviteModalOpen(true)}
+        />
+      ) : (
+        <>
+          {/* Network Overview Metric Strip */}
+          <div className="fm-network-strip">
         <div>
           <span>NETWORK REGISTER</span>
           <b>
@@ -3024,6 +3075,8 @@ export default function FpcManagement({
           </div>
         )}
       </section>
+      </>
+      )}
 
       {/* REVIEW DRAWER FOR TSF ADMIN */}
       {detailRow && (
@@ -3193,6 +3246,14 @@ export default function FpcManagement({
           </div>
         </div>
       )}
+      {/* TSF Onboarding Invitation Modal (3 Fields Only) */}
+      <TsfInviteModal
+        isOpen={inviteModalOpen}
+        onClose={() => setInviteModalOpen(false)}
+        state={state}
+        setState={setState}
+        setToast={setToast}
+      />
     </main>
   );
 }

@@ -1,9 +1,11 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { Check, ChevronRight, Download, FileText, Plus, Printer, RefreshCw, Search, ShieldCheck, Wifi, WifiOff, X } from "lucide-react";
+import { useEffect, useState, useMemo, type ReactNode } from "react";
+import { Check, ChevronRight, Download, FileText, Plus, Printer, RefreshCw, Search, ShieldCheck, Wifi, WifiOff, X, Eye, ArrowLeft } from "lucide-react";
 import { convert, money, type RecordRow, type State } from "@/lib/store";
 import FpcReports from "./FpcReports";
 import FpcManagement from "./FpcManagement";
 import AccessDenied from "./AccessDenied";
+import LedgerTransactionOverview from "./LedgerTransactionOverview";
+import RegistrationSuccessModal, { type RegistrationDetailItem } from "./RegistrationSuccessModal";
 import "./admin-modules.css";
 
 type Props = {
@@ -272,19 +274,31 @@ function PartyMaster({ state, setState, role, screen, setToast, go }: Props) {
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<RecordRow | null>(null);
   const [profile, setProfile] = useState<RecordRow | null>(null);
+  const [successModal, setSuccessModal] = useState<{
+    isOpen: boolean;
+    isEdit: boolean;
+    record: RecordRow;
+  } | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const parties = rows(state, key).filter(item => item.status !== "Deleted" && `${Object.values(item).join(" ")}`.toLowerCase().includes(query.toLowerCase()));
   const open = (row?: RecordRow) => { setEditing(row || null); setForm(Object.fromEntries(fields.map(([field]) => [field, String(row?.[field] ?? "")]))); setModal(true); };
   const save = () => {
     if (!form.name?.trim()) { setToast(`${label} name is required.`); return; }
     const finalStatus = form.status || editing?.status || "Active";
+    const isEditingMode = Boolean(editing);
     const record: RecordRow = { ...(editing || {}), ...form, id: editing?.id || id(isBuyer ? "BUY-" : "SUP-"), status: state.offline ? "Draft" : finalStatus, ...(state.offline ? { pendingStatus: finalStatus } : {}), fpcId: "FPC-ODI-001", paymentTerms: Number(form.paymentTerms || 0), ...(isBuyer ? { creditLimit: Number(form.creditLimit || 0), openBalance: Number(editing?.openBalance || 0) } : { openBalance: Number(editing?.openBalance || 0) }) };
     setState(s => {
       const current = rows(s, key);
       const next = editing ? current.map(item => item.id === record.id ? record : item) : [record, ...current];
       return { ...s, records: { ...s.records, [key]: next }, audit: [auditEntry(role, "Agri Business · Masters", record.id, editing ? "edited party master" : "created party master", editing || undefined, record), ...s.audit], notifications: [notice(`${label} ${record.name} ${editing ? "updated" : "added"}`), ...s.notifications], ...(s.offline ? { syncQueue: [{ id: id("SYNC-"), type: `${label} master`, record: record.id, status: "Pending sync" }, ...s.syncQueue] } : {}) };
     });
-    setModal(false); setToast(state.offline ? `${label} saved offline · queued to sync` : `${label} ${editing ? "updated" : "created"}`);
+    setModal(false);
+    setToast(state.offline ? `${label} saved offline · queued to sync` : `${label} ${editing ? "updated" : "created"}`);
+    setSuccessModal({
+      isOpen: true,
+      isEdit: isEditingMode,
+      record
+    });
   };
   const remove = (party: RecordRow) => {
     if (Number(party.openBalance || 0) > 0) { setToast(`${party.name} has ${money(Number(party.openBalance))} outstanding`); return; }
@@ -308,6 +322,41 @@ function PartyMaster({ state, setState, role, screen, setToast, go }: Props) {
     </div>
     {modal && <div className="am-backdrop" onClick={() => setModal(false)}><section className="am-dialog" onClick={event => event.stopPropagation()}><div className="am-drawer-head"><div><span className="am-kicker">{editing ? "Edit" : "New"} master record</span><h3>{editing ? editing.name : `Add ${label.toLowerCase()}`}</h3></div><button className="am-icon-button" onClick={() => setModal(false)} aria-label="Close"><X size={17}/></button></div><div className="am-form-grid">{fields.map(([field, caption, kind]) => <label key={field}>{caption}{Array.isArray(kind) ? <select value={form[field] || kind[0]} onChange={event => setForm(current => ({ ...current, [field]: event.target.value }))}>{kind.map(option => <option key={option}>{option}</option>)}</select> : <input type={kind === "number" ? "number" : "text"} value={form[field] || ""} onChange={event => setForm(current => ({ ...current, [field]: event.target.value }))}/>}</label>)}</div><div className="am-drawer-actions"><button className="am-button secondary" onClick={() => setModal(false)}>Cancel</button><button className="am-button primary" onClick={save}>Save {label.toLowerCase()}</button></div></section></div>}
     {profile && <div className="am-backdrop" onClick={() => setProfile(null)}><aside className="am-drawer" onClick={event => event.stopPropagation()}><div className="am-drawer-head"><div><span className="am-kicker">{label} profile</span><h3>{profile.name}</h3></div><button className="am-icon-button" onClick={() => setProfile(null)} aria-label="Close"><X size={17}/></button></div><div className="am-detail-grid">{Object.entries(profile).filter(([field]) => field !== "fpcId").map(([field, value]) => <div key={field}><small>{field.replaceAll(/([A-Z])/g, " $1")}</small><b>{field.toLowerCase().includes("balance") || field.toLowerCase().includes("limit") ? money(Number(value || 0)) : String(value || "—")}</b></div>)}</div><h4>Transaction history</h4><Table headers={["Reference", "Date", "Commodity", "Amount", "Status"]}>{transactions(profile).slice(0, 12).map(transaction => <tr key={transaction.id}><td>{transaction.id}</td><td>{transaction.date}</td><td>{transaction.commodity || transaction.item || "—"}</td><td>{money(Number(transaction.amount || 0))}</td><td>{transaction.status}</td></tr>)}</Table>{!transactions(profile).length && empty("No transactions found for this party.")}<p className="am-notice">Outstanding dues: <b>{money(Number(profile.openBalance || 0))}</b></p></aside></div>}
+    {successModal?.isOpen && (
+      <RegistrationSuccessModal
+        isOpen={successModal.isOpen}
+        isEdit={successModal.isEdit}
+        registrationType={`${label} Registration`}
+        registrationId={successModal.record.id}
+        statusText={successModal.record.status || "Active"}
+        statusBadgeVariant="green"
+        summaryDetails={isBuyer ? [
+          { label: "Buyer Name", value: successModal.record.name },
+          { label: "Buyer Type", value: successModal.record.type || "Wholesaler" },
+          { label: "Contact / Mobile", value: successModal.record.contact || successModal.record.mobile || "—" },
+          { label: "Credit Limit", value: money(Number(successModal.record.creditLimit || 0)), highlight: true },
+          { label: "Payment Terms", value: `${successModal.record.paymentTerms || 15} days` }
+        ] : [
+          { label: "Supplier Name", value: successModal.record.name },
+          { label: "Category", value: successModal.record.category || "Farm Inputs" },
+          { label: "Contact / Mobile", value: successModal.record.contact || "—" },
+          { label: "Payment Terms", value: `${successModal.record.paymentTerms || 30} days`, highlight: true }
+        ]}
+        onViewDetails={() => {
+          const rec = successModal.record;
+          setSuccessModal(null);
+          setProfile(rec);
+        }}
+        onDone={() => {
+          setSuccessModal(null);
+          setEditing(null);
+        }}
+        onRegisterAnother={!successModal.isEdit ? () => {
+          setSuccessModal(null);
+          open();
+        } : undefined}
+      />
+    )}
   </section>;
 }
 
@@ -365,8 +414,19 @@ function AdminFarmers({ state, setState, role, screen, setToast, go }: Props) {
 }
 
 const financeScreens = ["Finance", "Farmer ledger", "Buyer ledger", "Supplier ledger", "Cash book", "Bank book", "Receipts and payments", "Expense register", "Income & expenditure", "Profit & loss"];
-function Finance({ state, screen, setToast, go }: Props) {
+function Finance({ state, role, screen, setToast, go }: Props) {
   const [period, setPeriod] = useState("FY 2026–27");
+  const [selectedTxId, setSelectedTxId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [page, setPage] = useState<number>(1);
+  const pageSize = 15;
+
+  useEffect(() => {
+    setSelectedTxId(null);
+    setSearchQuery("");
+    setPage(1);
+  }, [screen]);
+
   const periodRows = (input: RecordRow[]) => {
     if (period === "All periods") return input;
     const start = period === "FY 2025–26" ? new Date(2025, 3, 1) : new Date(2026, 3, 1);
@@ -382,8 +442,8 @@ function Finance({ state, screen, setToast, go }: Props) {
     "Farmer ledger": periodRows(rows(state, "ledger")),
     "Buyer ledger": sales.map(item => ({ id: item.id, buyer: item.buyer, date: item.date, description: item.commodity, debit: item.amount, credit: 0, balance: Number(item.amount || 0), status: item.status })),
     "Supplier ledger": rows(state, "businessTransactions").filter(item => item.flow === "D").map(item => ({ id: item.id, supplier: item.party, date: item.date, description: item.item, debit: item.amount, credit: 0, balance: item.amount, status: item.status })),
-    "Cash book": [...payments.map(item => ({ ...item, entryType: "Payment" })), ...expenses.map(item => ({ ...item, entryType: "Expense" }))],
-    "Bank book": payments.filter(item => /bank|transfer|cheque/i.test(String(item.method || ""))),
+    "Cash book": [...payments.filter(item => /cash/i.test(String(item.method || "")) || !item.method).map(item => ({ ...item, entryType: item.entryType || "Payment" })), ...expenses.map(item => ({ ...item, entryType: "Expense" }))],
+    "Bank book": payments.filter(item => /bank|transfer|cheque|rtgs|neft/i.test(String(item.method || "")) || item.reference),
     "Receipts and payments": [...sales.map(item => ({ ...item, entryType: "Receipt", credit: item.amount })), ...payments.map(item => ({ ...item, entryType: "Payment", debit: item.amount }))],
     "Expense register": expenses,
     "Income & expenditure": [{ id: "FY-2026-27", period, income: sales.reduce((sum, item) => sum + Number(item.amount || 0), 0), expenditure: expenses.reduce((sum, item) => sum + Number(item.amount || 0), 0), surplus: sales.reduce((sum, item) => sum + Number(item.amount || 0), 0) - expenses.reduce((sum, item) => sum + Number(item.amount || 0), 0), status: "Management view" }],
@@ -391,16 +451,384 @@ function Finance({ state, screen, setToast, go }: Props) {
   };
   const current = screen === "Finance" ? "Profit & loss" : screen;
   const data = mapped[current] || mapped["Profit & loss"];
+
+  // Filtered by search query
+  const filteredData = (searchQuery.trim()
+    ? data.filter(item => Object.values(item).some(v => String(v || "").toLowerCase().includes(searchQuery.toLowerCase().trim())))
+    : data
+  );
+
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
+  const pageRows = filteredData.slice((page - 1) * pageSize, page * pageSize);
+
   const exportRows = data.length ? data : [];
   const columns = exportRows.length ? Object.keys(exportRows[0]).filter(field => field !== "fpcId") : [];
   const income = sales.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const expensesTotal = expenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  return <section className="am-module"><Header kicker="Finance · read and export" title={current === "Profit & loss" ? "Profit & loss" : current} description="Accountant-owned financial records shown read-only to the Admin. Use the period filter to review FPC totals; no ledger entries can be created or edited here." right={<div className="am-actions"><select className="am-select" value={period} onChange={event => setPeriod(event.target.value)}><option>FY 2026–27</option><option>All periods</option><option>FY 2025–26</option></select><button className="am-button secondary" onClick={() => exportCsv(`fpc-${current.toLowerCase().replaceAll(" ", "-")}`, exportRows)}><Download size={15}/> Export Excel CSV</button><button className="am-button secondary" onClick={() => { window.print(); setToast("Print dialog opened for PDF export."); }}><Printer size={15}/> Print / PDF</button><button className="am-button secondary" onClick={() => go("Approvals")}>Review approvals</button></div>}/>
-    <div className="am-finance-nav">{financeScreens.slice(1).map(name => <button key={name} className={name === current ? "active" : ""} onClick={() => go(name)}>{name}</button>)}</div>
-    <div className="am-metrics"><Metric label="Turnover" value={money(income)} note={period}/><Metric label="Operating expenses" value={money(expensesTotal)} note="Approved expense register"/><Metric label="Gross margin" value={money(grossMargin)} note="Before operating expenses; not net profit"/></div>
-    {current === "Profit & loss" && <div className="am-notice"><b>Gross margin is before operating expenses; it is not net profit.</b> This is a read-only management view of the selected period.</div>}
-    <div className="am-card"><div className="am-toolbar"><div><b>{current}</b><small>{data.length} rows · read only</small></div><Pill>Accountant data</Pill></div>{data.length ? <Table headers={columns}>{data.map(record => <tr key={record.id}>{columns.map(column => <td key={column}>{["income", "expenditure", "surplus", "amount", "debit", "credit", "balance", "sales", "purchaseCost", "grossMargin", "operatingExpenses"].includes(column) && typeof record[column] === "number" ? money(Number(record[column])) : String(record[column] ?? "—")}</td>)}</tr>)}</Table> : empty("No financial records for this period.")}</div>
-  </section>;
+
+  // If a transaction row was clicked, show complete Transaction Overview view
+  if (selectedTxId) {
+    return (
+      <section className="am-module">
+        <LedgerTransactionOverview
+          ledgerType={current}
+          transactionId={selectedTxId}
+          state={state}
+          role={role}
+          onBack={() => setSelectedTxId(null)}
+          onNavigate={(dest) => go(dest)}
+          setToast={setToast}
+        />
+      </section>
+    );
+  }
+
+  return (
+    <section className="am-module">
+      <Header
+        kicker="Finance · read and export"
+        title={current === "Profit & loss" ? "Profit & loss" : current}
+        description="Accountant-owned financial records shown read-only to the Admin. Use the period filter to review FPC totals; click any transaction row to inspect its complete financial breakdown and audit trail."
+        right={
+          <div className="am-actions">
+            <select className="am-select" value={period} onChange={event => { setPeriod(event.target.value); setPage(1); }}>
+              <option>FY 2026–27</option>
+              <option>All periods</option>
+              <option>FY 2025–26</option>
+            </select>
+            <button className="am-button secondary" onClick={() => exportCsv(`fpc-${current.toLowerCase().replaceAll(" ", "-")}`, exportRows)}>
+              <Download size={15}/> Export Excel CSV
+            </button>
+            <button className="am-button secondary" onClick={() => { window.print(); setToast("Print dialog opened for PDF export."); }}>
+              <Printer size={15}/> Print / PDF
+            </button>
+            <button className="am-button secondary" onClick={() => go("Approvals")}>
+              Review approvals
+            </button>
+          </div>
+        }
+      />
+
+      <div className="am-finance-nav">
+        {financeScreens.slice(1).map(name => (
+          <button key={name} className={name === current ? "active" : ""} onClick={() => go(name)}>
+            {name}
+          </button>
+        ))}
+      </div>
+
+      <div className="am-metrics">
+        <Metric label="Turnover" value={money(income)} note={period}/>
+        <Metric label="Operating expenses" value={money(expensesTotal)} note="Approved expense register"/>
+        <Metric label="Gross margin" value={money(grossMargin)} note="Before operating expenses; not net profit"/>
+      </div>
+
+      {current === "Profit & loss" && (
+        <div className="am-notice">
+          <b>Gross margin is before operating expenses; it is not net profit.</b> This is a read-only management view of the selected period.
+        </div>
+      )}
+
+      <div className="am-card">
+        <div className="am-toolbar">
+          <div>
+            <b>{current}</b>
+            <small>{filteredData.length} records · Click any row for complete transaction overview</small>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="am-search">
+              <Search size={15}/>
+              <input
+                value={searchQuery}
+                onChange={e => { setSearchQuery(e.target.value); setPage(1); }}
+                placeholder={`Search ${current.toLowerCase()}...`}
+                aria-label={`Search ${current}`}
+              />
+            </div>
+            <Pill>Accountant data</Pill>
+          </div>
+        </div>
+
+        {/* 1. FARMER LEDGER TABLE */}
+        {current === "Farmer ledger" ? (
+          filteredData.length ? (
+            <Table headers={["ID", "Farmer", "Farmer ID", "Date", "Description", "Debit", "Credit", "Balance", "Actions"]}>
+              {pageRows.map(record => (
+                <tr
+                  key={record.id}
+                  className="am-click-row clickable-ledger-row"
+                  style={{ cursor: "pointer" }}
+                  onClick={() => setSelectedTxId(record.id)}
+                  title="Click to inspect complete transaction overview"
+                >
+                  <td className="am-mono font-bold text-emerald-900">{record.id}</td>
+                  <td><b>{record.farmer || "—"}</b></td>
+                  <td><span className="am-mono text-xs text-slate-600">{record.farmerId || "—"}</span></td>
+                  <td className="text-xs">{record.date}</td>
+                  <td><span className="text-xs text-slate-700">{record.description}</span></td>
+                  <td className="font-mono text-xs font-semibold text-amber-800">
+                    {Number(record.debit) > 0 ? money(Number(record.debit)) : "—"}
+                  </td>
+                  <td className="font-mono text-xs font-bold text-emerald-800">
+                    {Number(record.credit) > 0 ? money(Number(record.credit)) : "—"}
+                  </td>
+                  <td className="font-mono text-xs font-bold text-slate-900">{money(Number(record.balance || 0))}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className="am-button small primary"
+                      style={{ padding: "3px 8px", fontSize: 11 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedTxId(record.id);
+                      }}
+                    >
+                      <Eye size={12}/> View
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          ) : empty("No farmer ledger records match this search.")
+        ) : current === "Buyer ledger" ? (
+          /* 2. BUYER LEDGER TABLE */
+          filteredData.length ? (
+            <Table headers={["Invoice / ID", "Buyer / Company", "Date", "Description", "Debit (Billed)", "Credit (Paid)", "Balance Due", "Status", "Actions"]}>
+              {pageRows.map(record => (
+                <tr
+                  key={record.id}
+                  className="am-click-row clickable-ledger-row"
+                  style={{ cursor: "pointer" }}
+                  onClick={() => setSelectedTxId(record.id)}
+                  title="Click to inspect complete transaction overview"
+                >
+                  <td className="am-mono font-bold text-emerald-900">{record.id}</td>
+                  <td><b>{record.buyer || "—"}</b></td>
+                  <td className="text-xs">{record.date}</td>
+                  <td><span className="text-xs text-slate-700">{record.description}</span></td>
+                  <td className="font-mono text-xs font-semibold text-emerald-900">{money(Number(record.debit || record.amount || 0))}</td>
+                  <td className="font-mono text-xs text-slate-400">{record.credit ? money(Number(record.credit)) : "₹0"}</td>
+                  <td className="font-mono text-xs font-bold text-amber-900">{money(Number(record.balance || record.amount || 0))}</td>
+                  <td><span className="am-chip green">● {record.status || "Approved"}</span></td>
+                  <td>
+                    <button
+                      type="button"
+                      className="am-button small primary"
+                      style={{ padding: "3px 8px", fontSize: 11 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedTxId(record.id);
+                      }}
+                    >
+                      <Eye size={12}/> View
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          ) : empty("No buyer ledger records match this search.")
+        ) : current === "Supplier ledger" ? (
+          /* 3. SUPPLIER LEDGER TABLE */
+          filteredData.length ? (
+            <Table headers={["Order / ID", "Supplier / Vendor", "Date", "Items Procured", "Billed (Cr)", "Paid (Dr)", "Balance Payable", "Status", "Actions"]}>
+              {pageRows.map(record => (
+                <tr
+                  key={record.id}
+                  className="am-click-row clickable-ledger-row"
+                  style={{ cursor: "pointer" }}
+                  onClick={() => setSelectedTxId(record.id)}
+                  title="Click to inspect complete transaction overview"
+                >
+                  <td className="am-mono font-bold text-emerald-900">{record.id}</td>
+                  <td><b>{record.supplier || record.party || "—"}</b></td>
+                  <td className="text-xs">{record.date}</td>
+                  <td><span className="text-xs text-slate-700">{record.description || record.item}</span></td>
+                  <td className="font-mono text-xs font-bold text-slate-900">{money(Number(record.balance || record.amount || 0))}</td>
+                  <td className="font-mono text-xs text-slate-400">{record.debit ? money(Number(record.debit)) : "₹0"}</td>
+                  <td className="font-mono text-xs font-bold text-amber-900">{money(Number(record.balance || record.amount || 0))}</td>
+                  <td><span className="am-chip green">● {record.status || "Approved"}</span></td>
+                  <td>
+                    <button
+                      type="button"
+                      className="am-button small primary"
+                      style={{ padding: "3px 8px", fontSize: 11 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedTxId(record.id);
+                      }}
+                    >
+                      <Eye size={12}/> View
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          ) : empty("No supplier ledger records match this search.")
+        ) : current === "Cash book" ? (
+          /* 4. CASH BOOK TABLE */
+          filteredData.length ? (
+            <Table headers={["Voucher ID", "Date", "Entry Type", "Particulars / Payee", "Description", "Cash Out (Dr)", "Cash In (Cr)", "Status", "Actions"]}>
+              {pageRows.map(record => (
+                <tr
+                  key={record.id}
+                  className="am-click-row clickable-ledger-row"
+                  style={{ cursor: "pointer" }}
+                  onClick={() => setSelectedTxId(record.id)}
+                  title="Click to inspect complete transaction overview"
+                >
+                  <td className="am-mono font-bold text-emerald-900">{record.id}</td>
+                  <td className="text-xs">{record.date}</td>
+                  <td>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-700">
+                      {record.entryType || (record.amount ? "Payment" : "Expense")}
+                    </span>
+                  </td>
+                  <td><b>{record.party || record.name || record.farmer || "Central Office"}</b></td>
+                  <td><span className="text-xs text-slate-700">{record.description || record.name}</span></td>
+                  <td className="font-mono text-xs font-bold text-amber-800">
+                    {record.entryType === "Expense" || record.entryType === "Payment" || Number(record.debit) > 0
+                      ? money(Number(record.amount || record.debit || 0))
+                      : "—"}
+                  </td>
+                  <td className="font-mono text-xs font-bold text-emerald-800">
+                    {record.entryType === "Receipt" || Number(record.credit) > 0
+                      ? money(Number(record.credit || record.amount || 0))
+                      : "—"}
+                  </td>
+                  <td><span className="am-chip green">● {record.status || "Posted"}</span></td>
+                  <td>
+                    <button
+                      type="button"
+                      className="am-button small primary"
+                      style={{ padding: "3px 8px", fontSize: 11 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedTxId(record.id);
+                      }}
+                    >
+                      <Eye size={12}/> View
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          ) : empty("No cash book records match this search.")
+        ) : current === "Bank book" ? (
+          /* 5. BANK BOOK TABLE */
+          filteredData.length ? (
+            <Table headers={["Voucher ID", "Date", "Bank Account", "Beneficiary / Party", "Payment Mode & Ref", "Disbursement (Dr)", "Receipt (Cr)", "Status", "Actions"]}>
+              {pageRows.map(record => (
+                <tr
+                  key={record.id}
+                  className="am-click-row clickable-ledger-row"
+                  style={{ cursor: "pointer" }}
+                  onClick={() => setSelectedTxId(record.id)}
+                  title="Click to inspect complete transaction overview"
+                >
+                  <td className="am-mono font-bold text-emerald-900">{record.id}</td>
+                  <td className="text-xs">{record.date}</td>
+                  <td className="text-xs font-semibold text-slate-800">State Bank of India (••••4821)</td>
+                  <td><b>{record.farmer || record.party || record.name || "Counterparty"}</b></td>
+                  <td>
+                    <div className="text-xs">
+                      <span className="font-semibold block">{record.method || "Bank Transfer"}</span>
+                      <small className="font-mono text-slate-500">{record.reference || "UTIB2026101200451"}</small>
+                    </div>
+                  </td>
+                  <td className="font-mono text-xs font-bold text-amber-800">
+                    {record.entryType !== "Receipt" ? money(Number(record.amount || record.debit || 0)) : "—"}
+                  </td>
+                  <td className="font-mono text-xs font-bold text-emerald-800">
+                    {record.entryType === "Receipt" ? money(Number(record.amount || record.credit || 0)) : "—"}
+                  </td>
+                  <td><span className="am-chip green">● {record.status || "Reconciled"}</span></td>
+                  <td>
+                    <button
+                      type="button"
+                      className="am-button small primary"
+                      style={{ padding: "3px 8px", fontSize: 11 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedTxId(record.id);
+                      }}
+                    >
+                      <Eye size={12}/> View
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          ) : empty("No bank book records match this search.")
+        ) : (
+          /* GENERAL FALLBACK TABLE FOR OTHER FINANCE SCREENS */
+          data.length ? (
+            <Table headers={[...columns, "Actions"]}>
+              {pageRows.map(record => (
+                <tr
+                  key={record.id}
+                  className="am-click-row clickable-ledger-row"
+                  style={{ cursor: "pointer" }}
+                  onClick={() => setSelectedTxId(record.id)}
+                  title="Click to inspect record details"
+                >
+                  {columns.map(column => (
+                    <td key={column}>
+                      {["income", "expenditure", "surplus", "amount", "debit", "credit", "balance", "sales", "purchaseCost", "grossMargin", "operatingExpenses"].includes(column) && typeof record[column] === "number"
+                        ? money(Number(record[column]))
+                        : String(record[column] ?? "—")}
+                    </td>
+                  ))}
+                  <td>
+                    <button
+                      type="button"
+                      className="am-button small primary"
+                      style={{ padding: "3px 8px", fontSize: 11 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedTxId(record.id);
+                      }}
+                    >
+                      <Eye size={12}/> View
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </Table>
+          ) : empty("No financial records for this period.")
+        )}
+
+        {/* PAGINATION FOOTER */}
+        {filteredData.length > pageSize && (
+          <div className="flex items-center justify-between p-3 border-t border-slate-200 mt-2 text-xs text-slate-600">
+            <span>
+              Showing {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, filteredData.length)} of {filteredData.length} records
+            </span>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                className="am-button small"
+                disabled={page === 1}
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+              >
+                Previous
+              </button>
+              <span className="px-2 font-semibold">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                type="button"
+                className="am-button small"
+                disabled={page >= totalPages}
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  );
 }
 
 const complianceTabs = ["Statutory calendar", "Filing tracker", "Meeting records", "Document vault"];

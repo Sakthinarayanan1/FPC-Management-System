@@ -860,3 +860,155 @@ button { cursor: pointer; }
     inset: -1px;
   }
 }
+
+/* ============================================================
+   DEMO ROLE SWITCHER (TWO-TAB SEGMENTED CONTROLS)
+   ============================================================ */
+.demo-role-switcher-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.demo-role-tabs {
+  display: inline-flex;
+  align-items: center;
+  background: #edf4ed;
+  border: 1px solid #d4e3d5;
+  border-radius: 28px;
+  padding: 3px;
+  gap: 3px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.demo-role-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 14px;
+  border-radius: 22px;
+  border: none;
+  cursor: pointer;
+  background: transparent;
+  color: #354a3c;
+  font-weight: 600;
+  font-size: 12px;
+  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+  white-space: nowrap;
+}
+
+.demo-role-tab:hover:not(.active) {
+  background: #dfece0;
+  color: #1b5e20;
+}
+
+.demo-role-tab.active {
+  background: #1b5e20 !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  box-shadow: 0 2px 6px rgba(27, 94, 32, 0.28);
+}
+
+.demo-role-tab:focus-visible {
+  outline: 2px solid #1b5e20;
+  outline-offset: 2px;
+}
+
+.demo-role-tab-label {
+  display: inline-flex;
+  align-items: center;
+}
+
+.demo-role-short {
+  display: none;
+}
+
+.demo-role-signout:hover {
+  background: #fef2f2 !important;
+  color: #dc2626 !important;
+  border-color: #fecaca !important;
+}
+
+.header-user-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 10px 3px 4px;
+  background: #f0f5f1;
+  border-radius: 20px;
+  border: 1px solid #d9e6db;
+}
+
+@media (max-width: 960px) {
+  .header-user-name {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .demo-role-full {
+    display: none;
+  }
+  .demo-role-short {
+    display: inline;
+  }
+  .demo-role-tab {
+    padding: 4px 10px;
+    font-size: 11px;
+    gap: 5px;
+  }
+}
+
+@media (max-width: 520px) {
+  .demo-role-short {
+    display: none;
+  }
+  .demo-role-tab {
+    padding: 4px 8px;
+  }
+  .header-user-badge {
+    padding: 3px;
+  }
+}
+
+/* ============================================================
+   COMMON REGISTRATION SUCCESS MODAL ANIMATIONS
+   ============================================================ */
+@keyframes regModalFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes regModalScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes regCheckmarkBounce {
+  0% {
+    transform: scale(0.65);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+
+

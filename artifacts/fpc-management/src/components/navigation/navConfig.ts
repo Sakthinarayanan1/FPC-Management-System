@@ -7,6 +7,7 @@ import {
   Wallet, Warehouse, type LucideIcon,
 } from "lucide-react";
 import { can, roles, type Role } from "@/lib/config";
+import { isNavigationNodeEnabled } from "@/lib/moduleConfig";
 
 export type NavigationPermission = {
   module: string;
@@ -355,15 +356,19 @@ export const navigationConfig: Record<Role, readonly NavigationNode[]> = {
 };
 
 export function isNavigationNodeAllowed(role: Role, node: NavigationNode): boolean {
+  if (!isNavigationNodeEnabled(node)) return false;
   return node.roles.includes(role) && (!node.permission || can(role, node.permission.module, node.permission.action));
 }
 
 export function getRoleNavigation(role: Role): NavigationNode[] {
   const filter = (nodes: readonly NavigationNode[]): NavigationNode[] => nodes.flatMap((node) => {
+    if (node.children) {
+      const children = filter(node.children);
+      if (!children.length) return [];
+      return [{ ...node, children }];
+    }
     if (!isNavigationNodeAllowed(role, node)) return [];
-    const children = node.children ? filter(node.children) : undefined;
-    if (node.children && !children?.length) return [];
-    return [{ ...node, ...(children ? { children } : {}) }];
+    return [node];
   });
   return filter(navigationConfig[role] ?? []);
 }

@@ -300,3 +300,299 @@
 .sh-doc-action-btn.primary:hover {
   background: #1e4d32;
 }
+
+/* ==========================================================================
+   Shareholder Registration - Linked Farmer Searchable Dropdown & Callouts
+   ========================================================================== */
+
+.sh-farmer-dropdown-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.sh-farmer-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.sh-farmer-search-input {
+  width: 100%;
+  border: 1px solid #dce5db;
+  background: #ffffff;
+  border-radius: 7px;
+  padding: 8px 32px 8px 10px;
+  color: #283d30;
+  font-size: 11px;
+  outline: 0;
+  min-height: 35px;
+  transition: border-color .15s, box-shadow .15s;
+}
+
+.sh-farmer-search-input:focus {
+  border-color: #286442;
+  box-shadow: 0 0 0 3px rgba(40, 100, 66, 0.12);
+}
+
+.sh-farmer-input-icons {
+  position: absolute;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sh-farmer-clear-btn {
+  border: none;
+  background: transparent;
+  color: #8b998e;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+}
+
+.sh-farmer-clear-btn:hover {
+  color: #334d3b;
+}
+
+.sh-farmer-dropdown-toggle {
+  border: none;
+  background: transparent;
+  color: #65766a;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+}
+
+.sh-farmer-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #cfe0d2;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(18, 42, 25, 0.14);
+  max-height: 250px;
+  overflow-y: auto;
+  z-index: 60;
+  padding: 4px 0;
+}
+
+.sh-farmer-option {
+  padding: 9px 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-bottom: 1px solid #f2f6f2;
+  transition: background 0.12s ease;
+}
+
+.sh-farmer-option:last-child {
+  border-bottom: none;
+}
+
+.sh-farmer-option:hover {
+  background: #f0f7f1;
+}
+
+.sh-farmer-option.selected {
+  background: #eaf3eb;
+  border-left: 3px solid #286442;
+}
+
+.sh-farmer-opt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.sh-farmer-opt-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1f3729;
+}
+
+.sh-farmer-opt-badges {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.sh-farmer-id-badge {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #e8f0e9;
+  color: #295738;
+}
+
+.sh-farmer-status-badge {
+  font-size: 8.5px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+
+.sh-farmer-status-badge.eligible {
+  background: #e6f4ea;
+  color: #137333;
+  border: 1px solid #ceead6;
+}
+
+.sh-farmer-status-badge.exists {
+  background: #fef7e0;
+  color: #b06000;
+  border: 1px solid #fce8b2;
+}
+
+.sh-farmer-opt-sub {
+  font-size: 9.5px;
+  color: #6a7b6f;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Selected Farmer Card Chip */
+.sh-farmer-selected-chip {
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: #f3f8f3;
+  border: 1px solid #c9decb;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sh-farmer-selected-chip-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sh-farmer-selected-chip-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1c5232;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sh-farmer-selected-chip-sub {
+  font-size: 9.5px;
+  color: #556c5c;
+}
+
+.sh-farmer-selected-chip-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Duplicate Shareholder Warning Callout */
+.sh-duplicate-warning {
+  grid-column: 1 / -1;
+  background: #fffcf2;
+  border: 1px solid #f0d58a;
+  border-left: 4px solid #d99014;
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+  box-shadow: 0 2px 6px rgba(180, 120, 10, 0.06);
+}
+
+.sh-duplicate-warning-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #925c0a;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.sh-duplicate-warning-body {
+  font-size: 11px;
+  color: #5c4720;
+  line-height: 1.5;
+}
+
+.sh-duplicate-warning-grid {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: #fdf6e2;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 1px solid #ebd9a2;
+}
+
+.sh-duplicate-warning-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sh-duplicate-warning-item small {
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #8c7343;
+}
+
+.sh-duplicate-warning-item span {
+  font-size: 11px;
+  font-weight: 600;
+  color: #2b251a;
+}
+
+.sh-duplicate-warning-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.sh-btn-warning-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid #d4a946;
+  background: #ffffff;
+  color: #7d5208;
+}
+
+.sh-btn-warning-action:hover {
+  background: #faeed1;
+  border-color: #b5882b;
+}
+
+.sh-btn-warning-action.primary {
+  background: #c7860c;
+  color: #ffffff;
+  border-color: #b07406;
+}
+
+.sh-btn-warning-action.primary:hover {
+  background: #aa6f06;
+}
+
