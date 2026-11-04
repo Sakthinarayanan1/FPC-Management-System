@@ -13,14 +13,18 @@ import {
 const router: IRouter = Router();
 
 // In-memory data store for onboarding invitations and applications
-interface ServerInvitation {
+export interface ServerInvitation {
   id: string;
   token: string;
+  fpcName?: string;
   adminName: string;
   adminEmail: string;
   adminMobile: string;
   clusterDistrict?: string;
   status:
+    | "Pending"
+    | "Accepted"
+    | "Expired"
     | "Invitation Sent"
     | "Link Generated"
     | "Link Generated (Demo Mode)"
@@ -31,7 +35,6 @@ interface ServerInvitation {
     | "Correction Required"
     | "Approved"
     | "Rejected"
-    | "Expired"
     | "Used";
   invitedBy: string;
   invitedAt: string;
@@ -43,7 +46,7 @@ interface ServerInvitation {
   notes?: string;
 }
 
-interface ServerApplication {
+export interface ServerApplication {
   id: string;
   invitationId: string;
   token: string;
@@ -77,7 +80,7 @@ interface ServerApplication {
 }
 
 // Seed initial pipeline records for realistic demo and testing
-const invitationsStore: ServerInvitation[] = [
+export const invitationsStore: ServerInvitation[] = [
   {
     id: "INV-2026-0001",
     token: "inv_sec_demo_sundargarh_4f8a9e2b1c",
@@ -122,7 +125,7 @@ const invitationsStore: ServerInvitation[] = [
   },
 ];
 
-const applicationsStore: ServerApplication[] = [
+export const applicationsStore: ServerApplication[] = [
   {
     id: "APP-FPC-2026-0001",
     invitationId: "INV-2026-0001",
@@ -218,14 +221,20 @@ function getBaseUrl(req: Request) {
 
 /**
  * POST /onboarding/invitations
- * Phase 1: TSF Admin initiates FPC Onboarding with 3 required fields ONLY
+ * Flow 2: TSF Admin initiates FPC Registration Invitation
  */
 router.post("/onboarding/invitations", async (req: Request, res: Response) => {
-  const { adminName, adminEmail, adminMobile, clusterDistrict, cluster, district, notes, demoMode } = req.body;
+  const { fpcName, companyName, adminName, adminEmail, adminMobile, clusterDistrict, cluster, district, notes, demoMode } = req.body;
   const isDemo = Boolean(demoMode || req.query.demo === "true" || process.env.DEMO_MODE === "true");
   const assignedClusterDistrict = (clusterDistrict || cluster || district || notes || "").trim() || undefined;
+  const targetFpcName = (fpcName || companyName || "").trim();
 
-  // Validation: Required 3 fields
+  // Validation: FPC Name
+  if (!targetFpcName || targetFpcName.length < 3) {
+    return res.status(400).json({ error: "FPC Name is required and must have at least 3 characters." });
+  }
+
+  // Validation: Admin Contact Details
   if (!adminName || typeof adminName !== "string" || adminName.trim().length < 3) {
     return res.status(400).json({ error: "FPC Admin Name is required and must have at least 3 characters." });
   }
@@ -242,18 +251,63 @@ router.post("/onboarding/invitations", async (req: Request, res: Response) => {
 
   const trimmedEmail = adminEmail.trim().toLowerCase();
 
-  // Duplicate Check against active invitations
-  const existingActive = invitationsStore.find(
-    (inv) =>
-      (inv.adminEmail.toLowerCase() === trimmedEmail || inv.adminMobile.replace(/\D/g, "") === mobileClean) &&
-      inv.status !== "Rejected" &&
-      inv.status !== "Expired"
-  );
+  // Prevent duplicate invitations for the same FPC or Email
+  const existingActive = invitationsStore.find((inv) => {
+    const isSameEmail = inv.adminEmail.toLowerCase() === trimmedEmail;
+    const isSameFpc = inv.fpcName && inv.fpcName.toLowerCase() === targetFpcName.toLowerCase();
+    const isActive = inv.status !== "Rejected" && inv.status !== "Expired";
+    return (isSameEmail || isSameFpc) && isActive;
+  });
 
   if (existingActive) {
+    if (req.body.resend === true || req.query.resend === "true") {
+      // Re-send to existing active invitation
+      const now = new Date();
+      existingActive.expiresAt = new Date(now.getTime() + 7 * 86400000).toISOString();
+      existingActive.lastResentAt = now.toISOString();
+      existingActive.resendCount += 1;
+
+      const baseUrl = getBaseUrl(req);
+      const emailPayload = buildInvitationEmailHtml({
+        adminName: existingActive.adminName,
+        token: existingActive.token,
+        expiresAt: existingActive.expiresAt,
+        baseUrl,
+      });
+
+      try {
+        const emailResult = await dispatchEmail({
+          to: existingActive.adminEmail,
+          subject: `(Reminder) ${emailPayload.subject}`,
+          html: emailPayload.html,
+          text: emailPayload.text,
+          category: "invitation",
+          metadata: { invitationId: existingActive.id, resendCount: existingActive.resendCount },
+        });
+
+        return res.json({
+          success: true,
+          message: `Existing invitation successfully refreshed and resent to ${existingActive.adminEmail}.`,
+          invitation: existingActive,
+          registrationUrl: `${baseUrl}/onboard/register?token=${existingActive.token}`,
+          emailMessageId: emailResult.providerMessageId,
+          previewUrl: emailResult.previewUrl,
+        });
+      } catch (err: any) {
+        return res.status(502).json({
+          success: false,
+          error: `Failed to resend invitation email: ${err.message || "Email provider rejected"}`,
+        });
+      }
+    }
+
+    const conflictSubject =
+      existingActive.fpcName && existingActive.fpcName.toLowerCase() === targetFpcName.toLowerCase()
+        ? `FPC '${targetFpcName}'`
+        : `Email '${trimmedEmail}'`;
     return res.status(409).json({
       error: "Duplicate Invitation Detected",
-      message: `An active onboarding invitation already exists for this email/mobile (Sent on ${new Date(existingActive.invitedAt).toLocaleDateString("en-IN")}). Current Status: ${existingActive.status}.`,
+      message: `An active onboarding invitation already exists for ${conflictSubject} (Sent on ${new Date(existingActive.invitedAt).toLocaleDateString("en-IN")}). Current Status: ${existingActive.status}.`,
       existingInvitation: existingActive,
       canResend: true,
     });
@@ -264,16 +318,18 @@ router.post("/onboarding/invitations", async (req: Request, res: Response) => {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + 7 * 86400000).toISOString(); // 7-day expiration
   const baseUrl = getBaseUrl(req);
+  const activationUrl = `${baseUrl}/onboard/activate?token=${token}`;
   const registrationUrl = `${baseUrl}/onboard/register?token=${token}`;
 
   const newInvitation: ServerInvitation = {
     id: `INV-${now.getFullYear()}-${Date.now().toString().slice(-4)}`,
     token,
+    fpcName: targetFpcName,
     adminName: adminName.trim(),
     adminEmail: trimmedEmail,
     adminMobile: mobileClean,
     clusterDistrict: assignedClusterDistrict,
-    status: isDemo ? "Link Generated (Demo Mode)" : "Invitation Sent",
+    status: "Pending",
     invitedBy: (req.headers["x-user-name"] as string) || "TSF Central Admin",
     invitedAt: now.toISOString(),
     expiresAt,
@@ -290,6 +346,7 @@ router.post("/onboarding/invitations", async (req: Request, res: Response) => {
       demoMode: true,
       message: `Demo Mode: Registration invitation link generated successfully without SMTP dispatch.`,
       invitation: newInvitation,
+      activationUrl,
       registrationUrl,
     });
   }
@@ -312,7 +369,7 @@ router.post("/onboarding/invitations", async (req: Request, res: Response) => {
       metadata: { invitationId: newInvitation.id, adminMobile: newInvitation.adminMobile },
     });
 
-    newInvitation.status = "Invitation Sent";
+    newInvitation.status = "Pending";
     invitationsStore.unshift(newInvitation);
 
     return res.status(201).json({
@@ -320,6 +377,7 @@ router.post("/onboarding/invitations", async (req: Request, res: Response) => {
       emailDispatched: true,
       message: `Invitation successfully dispatched to ${newInvitation.adminEmail}.`,
       invitation: newInvitation,
+      activationUrl,
       registrationUrl,
       emailMessageId: emailResult.providerMessageId,
       previewUrl: emailResult.previewUrl,
@@ -327,7 +385,7 @@ router.post("/onboarding/invitations", async (req: Request, res: Response) => {
   } catch (err: any) {
     const errorMsg = err.message || "Failed to dispatch email via mail provider";
     // Always preserve invitation record so Copy Link and Open Link work independently
-    newInvitation.status = "Link Generated";
+    newInvitation.status = "Pending";
     invitationsStore.unshift(newInvitation);
 
     return res.status(201).json({
@@ -336,6 +394,7 @@ router.post("/onboarding/invitations", async (req: Request, res: Response) => {
       emailError: errorMsg,
       message: `Registration link generated successfully. Note: Email delivery could not be completed via mail provider (${errorMsg}). You can use Copy Link or Open Link directly.`,
       invitation: newInvitation,
+      activationUrl,
       registrationUrl,
     });
   }
@@ -343,13 +402,29 @@ router.post("/onboarding/invitations", async (req: Request, res: Response) => {
 
 /**
  * GET /onboarding/invitations
- * TSF Admin: List all invitations and linked application progress
+ * TSF Admin: List all invitations and linked application progress with dynamic status tracking
  */
 router.get("/onboarding/invitations", (req: Request, res: Response) => {
+  const now = Date.now();
+  const baseUrl = getBaseUrl(req);
   const combined = invitationsStore.map((inv) => {
+    // Dynamic status tracking (Pending, Accepted, Expired)
+    let displayStatus = inv.status;
+    if (inv.status !== "Accepted" && inv.status !== "Approved" && inv.status !== "Rejected") {
+      if (new Date(inv.expiresAt).getTime() < now) {
+        displayStatus = "Expired";
+      } else {
+        displayStatus = "Pending";
+      }
+    }
+
     const linkedApp = applicationsStore.find((app) => app.invitationId === inv.id);
     return {
       ...inv,
+      status: displayStatus,
+      fpcName: inv.fpcName || linkedApp?.companyName || "Farmer Producer Company",
+      activationUrl: `${baseUrl}/onboard/activate?token=${inv.token}`,
+      registrationUrl: `${baseUrl}/onboard/register?token=${inv.token}`,
       application: linkedApp || null,
     };
   });
@@ -358,6 +433,7 @@ router.get("/onboarding/invitations", (req: Request, res: Response) => {
     success: true,
     count: combined.length,
     data: combined,
+    invitations: combined,
   });
 });
 
@@ -504,6 +580,8 @@ router.get("/onboarding/verify-token", (req: Request, res: Response) => {
     valid: true,
     invitation: {
       id: invitation.id,
+      token: invitation.token,
+      fpcName: invitation.fpcName,
       adminName: invitation.adminName,
       adminEmail: invitation.adminEmail,
       adminMobile: invitation.adminMobile,
@@ -575,13 +653,10 @@ router.post("/onboarding/applications/submit", (req: Request, res: Response) => 
   const invitation = invitationsStore.find((inv) => inv.token === token);
   if (!invitation) return res.status(404).json({ error: "Invalid invitation token." });
 
-  // Basic validation of mandatory fields
-  if (!applicationData?.companyName || applicationData.companyName.trim().length < 3) {
-    return res.status(400).json({ error: "Company Legal Name is required." });
-  }
-  if (!applicationData?.state || !applicationData?.district) {
-    return res.status(400).json({ error: "Registered State and District are mandatory." });
-  }
+  // All registration fields are optional - support partial or empty submissions
+  const companyName = (applicationData?.companyName || "").trim() || "Registered Producer Company";
+  const state = applicationData?.state || "";
+  const district = applicationData?.district || "";
 
   const now = new Date().toISOString();
   let app = applicationsStore.find((a) => a.invitationId === invitation.id);
@@ -591,13 +666,13 @@ router.post("/onboarding/applications/submit", (req: Request, res: Response) => 
       id: `APP-FPC-${new Date().getFullYear()}-${Date.now().toString().slice(-4)}`,
       invitationId: invitation.id,
       token,
-      companyName: applicationData.companyName.trim(),
-      state: applicationData.state,
-      district: applicationData.district,
-      directors: applicationData.directors || [],
-      operationalInfo: applicationData.operationalInfo || {},
-      bankAccounts: applicationData.bankAccounts || [],
-      documents: applicationData.documents || {},
+      companyName,
+      state,
+      district,
+      directors: applicationData?.directors || [],
+      operationalInfo: applicationData?.operationalInfo || {},
+      bankAccounts: applicationData?.bankAccounts || [],
+      documents: applicationData?.documents || {},
       status: "Submitted",
       submittedAt: now,
       createdAt: now,

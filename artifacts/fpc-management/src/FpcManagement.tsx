@@ -489,10 +489,7 @@ function Field({
   const id = `fpc-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${generatedId}`;
   return (
     <label className="fm-field" htmlFor={id}>
-      <span>
-        {label}
-        {required && <i>Required</i>}
-      </span>
+      <span>{label}</span>
       {options ? (
         <select
           id={id}
@@ -522,7 +519,6 @@ function Field({
           value={value ?? ""}
           readOnly={readOnly}
           placeholder={placeholder}
-          required={required}
           onChange={(e) => onChange(e.target.value)}
         />
       )}
@@ -814,85 +810,9 @@ export default function FpcManagement({
       };
     });
 
-  // Step Validation Logic
-  const validate = (index: number): boolean => {
-    const errors: string[] = [];
-    const b = draft.basic || {};
-    const c = draft.capital || {};
-    const l = draft.location || {};
-    const act = draft.activities || {};
-    const directors = draft.directors || [];
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    // Step 0: Basic company details
-    if (index === 0) {
-      if (!b.legalName?.trim()) errors.push("Registered FPC Name is required.");
-      if (!/^[A-Z0-9]{21}$/.test(b.cin || "")) errors.push("CIN must contain exactly 21 letters or numbers (e.g., U01100OD2021PTC035612).");
-      if (!b.incorporationDate) errors.push("Date of Incorporation is required.");
-      if (b.contactEmail && !emailPattern.test(b.contactEmail)) errors.push("Enter a valid official contact email address.");
-      if (b.mobile && !/^\d{10}$/.test(String(b.mobile).replace(/\D/g, ""))) errors.push("Contact mobile must contain 10 digits.");
-      if (fpcRows(state).some((row) => row.id !== editingId && row.details?.basic?.cin?.toUpperCase() === String(b.cin || "").toUpperCase())) {
-        errors.push("An FPC with this CIN is already registered.");
-      }
-    }
-
-    // Step 1: Legal & registration
-    if (index === 1) {
-      if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(b.pan || "")) errors.push("Valid 10-character PAN is required (e.g. AAACG1234F).");
-      if (!/^[A-Z]{4}[0-9]{5}[A-Z]$/.test(b.tan || "")) errors.push("Valid 10-character TAN is required (e.g. BBNG01234A).");
-      if (!/^[0-9]{2}[A-Z0-9]{13}$/.test(b.gstin || "")) errors.push("Valid 15-character GSTIN is required.");
-      if (l.state === "Odisha" && b.gstin && !b.gstin.startsWith("21")) errors.push("GSTIN for Odisha must begin with state code 21.");
-      if (l.state === "Jharkhand" && b.gstin && !b.gstin.startsWith("20")) errors.push("GSTIN for Jharkhand must begin with state code 20.");
-    }
-
-    // Step 2: Financial information
-    if (index === 2) {
-      if (!Number(c.authorisedCapital) || Number(c.authorisedCapital) <= 0) errors.push("Authorized Capital must be a positive amount in ₹.");
-      if (!Number(c.paidUpCapital) || Number(c.paidUpCapital) <= 0) errors.push("Paid-up Capital must be a positive amount in ₹.");
-      if (Number(c.paidUpCapital) > Number(c.authorisedCapital)) errors.push("Paid-up capital cannot exceed authorized capital.");
-      if (!Number(c.faceValue) || Number(c.faceValue) <= 0) errors.push("Enter a valid Face Value per share.");
-      const primaryBank = (draft.bankAccounts || [])[0];
-      if (!primaryBank?.bank || !primaryBank?.accountNumber || !primaryBank?.ifsc) {
-        errors.push("Primary bank name, account number, and IFSC code are required.");
-      }
-    }
-
-    // Step 3: Board of directors
-    if (index === 3) {
-      if (directors.length < 5) errors.push("At least five directors are required on the Board.");
-      if (!directors.some((d: Obj) => d.gender === "Female")) errors.push("At least one woman director is required on the Board.");
-      if (directors.some((d: Obj) => !d.name?.trim())) errors.push("Director full name is required for all entries.");
-      if (directors.some((d: Obj) => !/^\d{8}$/.test(String(d.din || "").trim()))) errors.push("Every director requires an 8-digit Director Identification Number (DIN).");
-      if (directors.some((d: Obj) => !d.designation)) errors.push("Designation is required for all directors.");
-      if (directors.some((d: Obj) => !d.appointmentDate)) errors.push("Appointment date is required for all directors.");
-      if (directors.some((d: Obj) => !/^\d{10}$/.test(String(d.mobile || "").replace(/\D/g, "")))) errors.push("Every director requires a valid 10-digit mobile number.");
-    }
-
-    // Step 4: Logo & documents
-    if (index === 4) {
-      // Optional check, warn if no incorporation certificate
-      if (!draft.legalDocs?.incorporationCertificate && !b.registrationCert) {
-        // Warning only, don't hard block
-      }
-    }
-
-    // Step 5: Address & location
-    if (index === 5) {
-      if (!l.address?.trim()) errors.push("Registered office address is required.");
-      if (!l.state) errors.push("State selection is required.");
-      if (!l.district) errors.push("District selection is required.");
-      if (!l.block) errors.push("Block selection is required.");
-      if (!/^\d{6}$/.test(String(l.pin || "").trim())) errors.push("A valid 6-digit PIN code is required.");
-    }
-
-    // Step 6: Business activities
-    if (index === 6) {
-      if (!act.primary) errors.push("Primary business activity is required.");
-      if (!act.commodities?.trim()) errors.push("Please list the primary commodities handled.");
-    }
-
-    if (errors.length) setToast(errors[0]);
-    return errors.length === 0;
+  // Step Validation Logic - All fields optional across all 8 registration steps
+  const validate = (_index: number): boolean => {
+    return true;
   };
 
   const saveDraft = (status = "Draft") => {
@@ -1559,11 +1479,11 @@ export default function FpcManagement({
       return (
         <Section title="Basic company details" note="Enter registered name, registration number, CIN and incorporation details." number="01">
           <div className="fm-grid two">
-            <Field label="FPC Legal Name" value={b.legalName} required placeholder="e.g. Green Valley Farmer Producer Company Ltd." onChange={(v) => patch("basic", "legalName", v)} />
-            <Field label="Corporate Identification Number (CIN)" value={b.cin} required hint="21 alphanumeric characters" placeholder="e.g. U01100OD2021PTC035612" onChange={(v) => patch("basic", "cin", v.toUpperCase())} />
+            <Field label="FPC Legal Name" value={b.legalName} placeholder="e.g. Green Valley Farmer Producer Company Ltd." onChange={(v) => patch("basic", "legalName", v)} />
+            <Field label="Corporate Identification Number (CIN)" value={b.cin} hint="21 alphanumeric characters" placeholder="e.g. U01100OD2021PTC035612" onChange={(v) => patch("basic", "cin", v.toUpperCase())} />
             <Field label="FPC Registration Number" value={b.registrationNumber} placeholder="e.g. 035612" onChange={(v) => patch("basic", "registrationNumber", v)} />
             <Field label="ROC Office" value={b.rocOffice} options={["ROC Cuttack", "ROC Ranchi", "ROC Kolkata", "ROC Delhi", "ROC Mumbai"]} onChange={(v) => { patch("basic", "rocOffice", v); patch("roc", "office", v); }} />
-            <Field label="Date of Incorporation" type="date" value={b.incorporationDate} required onChange={(v) => { patch("basic", "incorporationDate", v); patch("roc", "incorporationDate", v); }} />
+            <Field label="Date of Incorporation" type="date" value={b.incorporationDate} onChange={(v) => { patch("basic", "incorporationDate", v); patch("roc", "incorporationDate", v); }} />
             <Field label="Company Category" value={b.category} options={["Producer Company under Section 378A of CA 2013", "Company Limited by Shares", "Private Limited (Producer)"]} onChange={(v) => patch("basic", "category", v)} />
             <Field label="Official Contact Email" type="email" value={b.contactEmail} placeholder="e.g. office@greenvalleyfpc.in" onChange={(v) => patch("basic", "contactEmail", v)} />
             <Field label="Official Contact Mobile" value={b.mobile} placeholder="10-digit mobile" onChange={(v) => patch("basic", "mobile", v)} />
@@ -1578,9 +1498,9 @@ export default function FpcManagement({
       return (
         <Section title="Legal and registration details" note="Tax registrations (PAN, TAN, GSTIN) and operating licenses." number="02">
           <div className="fm-grid two">
-            <Field label="Company PAN" value={b.pan} required hint="10 characters (e.g. AAACG1234F)" onChange={(v) => patch("basic", "pan", v.toUpperCase())} />
-            <Field label="Company TAN" value={b.tan} required hint="10 characters (e.g. BBNG01234A)" onChange={(v) => patch("basic", "tan", v.toUpperCase())} />
-            <Field label="GSTIN" value={b.gstin} required hint="15 characters (State code 21 for Odisha, 20 for Jharkhand)" onChange={(v) => patch("basic", "gstin", v.toUpperCase())} />
+            <Field label="Company PAN" value={b.pan} hint="10 characters (e.g. AAACG1234F)" onChange={(v) => patch("basic", "pan", v.toUpperCase())} />
+            <Field label="Company TAN" value={b.tan} hint="10 characters (e.g. BBNG01234A)" onChange={(v) => patch("basic", "tan", v.toUpperCase())} />
+            <Field label="GSTIN" value={b.gstin} hint="15 characters (State code 21 for Odisha, 20 for Jharkhand)" onChange={(v) => patch("basic", "gstin", v.toUpperCase())} />
             <Field label="FSSAI License Number" value={b.fssaiLicense} placeholder="14-digit FSSAI Number" onChange={(v) => patch("basic", "fssaiLicense", v)} />
             <Field label="Seed License Number" value={b.seedLicense} placeholder="e.g. SL/KEO/2024/118" onChange={(v) => patch("basic", "seedLicense", v)} />
             <Field label="Fertilizer License Number" value={b.fertilizerLicense} placeholder="e.g. FL/KEO/2023/041" onChange={(v) => patch("basic", "fertilizerLicense", v)} />
@@ -1620,8 +1540,8 @@ export default function FpcManagement({
         <>
           <Section title="Capital structure and turnover" note="Authorized capital, paid-up capital and member metrics." number="03">
             <div className="fm-grid three">
-              <Field label="Authorized Capital (₹)" type="number" value={c.authorisedCapital} required placeholder="e.g. 1000000" onChange={(v) => patch("capital", "authorisedCapital", v)} />
-              <Field label="Paid-up Capital (₹)" type="number" value={c.paidUpCapital} required placeholder="e.g. 620000" onChange={(v) => patch("capital", "paidUpCapital", v)} />
+              <Field label="Authorized Capital (₹)" type="number" value={c.authorisedCapital} placeholder="e.g. 1000000" onChange={(v) => patch("capital", "authorisedCapital", v)} />
+              <Field label="Paid-up Capital (₹)" type="number" value={c.paidUpCapital} placeholder="e.g. 620000" onChange={(v) => patch("capital", "paidUpCapital", v)} />
               <Field
                 label="Face Value per Share (₹)"
                 type="number"
@@ -1632,7 +1552,7 @@ export default function FpcManagement({
                   patch("capital", "shares", String(shares));
                 }}
               />
-              <Field label="Annual Turnover (₹)" type="number" value={c.annualTurnover} required placeholder="e.g. 7180000" onChange={(v) => patch("capital", "annualTurnover", v)} />
+              <Field label="Annual Turnover (₹)" type="number" value={c.annualTurnover} placeholder="e.g. 7180000" onChange={(v) => patch("capital", "annualTurnover", v)} />
               <Field label="Financial Year" value={c.financialYear || "2025–26"} options={["2025–26", "2024–25", "2023–24"]} onChange={(v) => patch("capital", "financialYear", v)} />
               <Field label="Number of Farmers" type="number" value={c.farmerCount} placeholder="e.g. 100" onChange={(v) => patch("capital", "farmerCount", v)} />
               <Field label="Number of Shareholders" type="number" value={c.shareholderCount} placeholder="e.g. 62" onChange={(v) => patch("capital", "shareholderCount", v)} />
@@ -1658,9 +1578,9 @@ export default function FpcManagement({
                   )}
                 </div>
                 <div className="fm-grid three">
-                  <Field label="Bank Name" value={bAcc.bank} required placeholder="e.g. State Bank of India" onChange={(v) => setArrayField("bankAccounts", i, "bank", v)} />
-                  <Field label="Account Number" value={bAcc.accountNumber} required placeholder="Account number" onChange={(v) => setArrayField("bankAccounts", i, "accountNumber", v)} />
-                  <Field label="IFSC Code" value={bAcc.ifsc} required placeholder="e.g. SBIN0000123" onChange={(v) => setArrayField("bankAccounts", i, "ifsc", v.toUpperCase())} />
+                  <Field label="Bank Name" value={bAcc.bank} placeholder="e.g. State Bank of India" onChange={(v) => setArrayField("bankAccounts", i, "bank", v)} />
+                  <Field label="Account Number" value={bAcc.accountNumber} placeholder="Account number" onChange={(v) => setArrayField("bankAccounts", i, "accountNumber", v)} />
+                  <Field label="IFSC Code" value={bAcc.ifsc} placeholder="e.g. SBIN0000123" onChange={(v) => setArrayField("bankAccounts", i, "ifsc", v.toUpperCase())} />
                   <Field label="Branch Name" value={bAcc.branch} placeholder="e.g. Keonjhar Main Branch" onChange={(v) => setArrayField("bankAccounts", i, "branch", v)} />
                   <Field label="Account Type" value={bAcc.accountType} options={["Current", "Savings", "Cash Credit"]} onChange={(v) => setArrayField("bankAccounts", i, "accountType", v)} />
                 </div>
@@ -1677,7 +1597,7 @@ export default function FpcManagement({
     // STEP 3: Board of Directors (BOD) Details
     if (index === 3) {
       return (
-        <Section title="Board of directors (BOD) details" note={`Minimum 5 directors required • At least 1 female director mandatory • Total entered: ${dirs.length}`} number="04">
+        <Section title="Board of directors (BOD) details" note={`Board of directors • Total entered: ${dirs.length}`} number="04">
           <div className="fm-director-list">
             {dirs.map((d: Obj, i: number) => (
               <div className="fm-row-card" key={i} style={{ borderLeft: "4px solid #176b49" }}>
@@ -1705,12 +1625,12 @@ export default function FpcManagement({
                 </div>
 
                 <div className="fm-grid three">
-                  <Field label="Director Full Name" value={d.name} required placeholder="Full Name" onChange={(v) => setArrayField("directors", i, "name", v)} />
-                  <Field label="DIN (8 digits)" value={d.din} required placeholder="e.g. 01234567" onChange={(v) => setArrayField("directors", i, "din", v)} />
+                  <Field label="Director Full Name" value={d.name} placeholder="Full Name" onChange={(v) => setArrayField("directors", i, "name", v)} />
+                  <Field label="DIN (8 digits)" value={d.din} placeholder="e.g. 01234567" onChange={(v) => setArrayField("directors", i, "din", v)} />
                   <Field label="Designation" value={d.designation} options={["Chairperson", "Managing Director", "Director", "CEO", "Nominee Director", "Alternate Director"]} onChange={(v) => setArrayField("directors", i, "designation", v)} />
                   <Field label="Gender" value={d.gender} options={["Female", "Male", "Other"]} onChange={(v) => setArrayField("directors", i, "gender", v)} />
-                  <Field label="Appointment Date" type="date" value={d.appointmentDate} required onChange={(v) => setArrayField("directors", i, "appointmentDate", v)} />
-                  <Field label="Mobile Number" value={d.mobile} required placeholder="10-digit mobile" onChange={(v) => setArrayField("directors", i, "mobile", v)} />
+                  <Field label="Appointment Date" type="date" value={d.appointmentDate} onChange={(v) => setArrayField("directors", i, "appointmentDate", v)} />
+                  <Field label="Mobile Number" value={d.mobile} placeholder="10-digit mobile" onChange={(v) => setArrayField("directors", i, "mobile", v)} />
                   <Field label="Email Address" type="email" value={d.email} placeholder="director@fpc.demo" onChange={(v) => setArrayField("directors", i, "email", v)} />
                   <Field label="Director PAN" value={d.pan} placeholder="e.g. ABCDE1234F" onChange={(v) => setArrayField("directors", i, "pan", v.toUpperCase())} />
                   <Field label="Social Category" value={d.category} options={["General", "OBC", "SC", "ST", "Other"]} onChange={(v) => setArrayField("directors", i, "category", v)} />
@@ -1822,13 +1742,13 @@ export default function FpcManagement({
           <h4 style={{ margin: "16px 0 8px 0", fontSize: 13, color: "#1e3b2b" }}>Statutory Document Attachments</h4>
           <div className="fm-doc-grid">
             {[
-              { key: "incorporationCertificate", label: "Certificate of Incorporation", req: true },
-              { key: "panCertificate", label: "Company PAN Certificate", req: true },
+              { key: "incorporationCertificate", label: "Certificate of Incorporation", req: false },
+              { key: "panCertificate", label: "Company PAN Certificate", req: false },
               { key: "gstCertificate", label: "GSTIN Certificate", req: false },
               { key: "fssaiCertificate", label: "FSSAI Food Safety License", req: false },
               { key: "seedLicenseDoc", label: "Seed Production/Distribution License", req: false },
               { key: "fertilizerLicenseDoc", label: "Fertilizer Retail/Wholesale License", req: false },
-              { key: "rocDocuments", label: "ROC MOA & AOA Documents", req: true },
+              { key: "rocDocuments", label: "ROC MOA & AOA Documents", req: false },
               { key: "otherDocuments", label: "Board Resolution / Supporting Documents", req: false },
             ].map((dItem) => {
               const attached = docs[dItem.key];
@@ -1836,7 +1756,7 @@ export default function FpcManagement({
                 <div className="fm-doc-card" key={dItem.key}>
                   <div className="fm-doc-card-head">
                     <span style={{ fontWeight: 700, fontSize: 12, color: "#234030" }}>
-                      {dItem.label} {dItem.req && <i style={{ color: "#b45309", fontStyle: "normal" }}>*</i>}
+                      {dItem.label}
                     </span>
                     <span className={`fm-doc-badge ${attached ? "attached" : "pending"}`}>
                       {attached ? "✓ Attached" : "Pending"}
@@ -1863,13 +1783,12 @@ export default function FpcManagement({
       return (
         <Section title="Registered office and operating location" note="Dependent administrative hierarchy: State → District → Block → Gram Panchayat → Village." number="06">
           <div className="fm-grid three">
-            <Field label="Registered Office Street Address" value={loc.address} required placeholder="Village, Landmark, Street" onChange={(v) => patch("location", "address", v)} />
+            <Field label="Registered Office Street Address" value={loc.address} placeholder="Village, Landmark, Street" onChange={(v) => patch("location", "address", v)} />
 
             {/* Dependent Dropdowns */}
             <Field
               label="State"
               value={loc.state || "Odisha"}
-              required
               options={["Odisha", "Jharkhand"]}
               onChange={(v) => {
                 patch("location", "state", v);
@@ -1887,7 +1806,6 @@ export default function FpcManagement({
             <Field
               label="District"
               value={loc.district || districtOptions[0]}
-              required
               options={districtOptions}
               onChange={(v) => {
                 patch("location", "district", v);
@@ -1903,7 +1821,6 @@ export default function FpcManagement({
             <Field
               label="Block"
               value={loc.block || blockOptions[0]}
-              required
               options={blockOptions}
               onChange={(v) => {
                 patch("location", "block", v);
@@ -1917,7 +1834,6 @@ export default function FpcManagement({
             <Field
               label="Gram Panchayat"
               value={loc.panchayat || panchayatOptions[0]}
-              required
               options={panchayatOptions}
               onChange={(v) => {
                 patch("location", "panchayat", v);
@@ -1929,12 +1845,11 @@ export default function FpcManagement({
             <Field
               label="Village"
               value={loc.village || villageOptions[0]}
-              required
               options={villageOptions}
               onChange={(v) => patch("location", "village", v)}
             />
 
-            <Field label="PIN Code" value={loc.pin} required placeholder="6-digit PIN code" onChange={(v) => patch("location", "pin", v)} />
+            <Field label="PIN Code" value={loc.pin} placeholder="6-digit PIN code" onChange={(v) => patch("location", "pin", v)} />
             <Field label="Office Mobile Number" value={loc.mobile} placeholder="10-digit phone" onChange={(v) => patch("location", "mobile", v)} />
             <Field label="Official Email Address" value={loc.email} placeholder="office@fpc.demo" onChange={(v) => patch("location", "email", v)} />
             <Field label="Latitude (Optional)" value={loc.latitude} placeholder="e.g. 21.6289" onChange={(v) => patch("location", "latitude", v)} />
@@ -1954,7 +1869,6 @@ export default function FpcManagement({
             <Field
               label="Primary Business Activity"
               value={act.primary || "Produce Procurement"}
-              required
               options={activityList}
               onChange={(v) => patch("activities", "primary", v)}
             />
@@ -1973,7 +1887,6 @@ export default function FpcManagement({
             <Field
               label="Commodities Handled"
               value={act.commodities}
-              required
               placeholder="e.g. Paddy, Maize, Arhar, Ragi, Mustard"
               onChange={(v) => patch("activities", "commodities", v)}
             />
@@ -2444,21 +2357,23 @@ export default function FpcManagement({
           <div className="fm-progress-line">
             <i style={{ width: `${((step + 1) / 8) * 100}%` }} />
           </div>
-          <div className="fm-stepper">
-            {steps.map((s, i) => (
-              <button
-                type="button"
-                className={`${step === i ? "current" : ""} ${step > i ? "complete" : ""}`}
-                key={s}
-                onClick={() => {
-                  if (i <= step) setStep(i);
-                  else if (validate(step)) setStep(i);
-                }}
-              >
-                <span>{step > i ? <Check size={13} /> : `0${i + 1}`}</span>
-                <small>{s}</small>
-              </button>
-            ))}
+          <div className="fm-stepper-wrap">
+            <div className="fm-stepper">
+              {steps.map((s, i) => (
+                <button
+                  type="button"
+                  className={`${step === i ? "current" : ""} ${step > i ? "complete" : ""}`}
+                  key={s}
+                  onClick={() => {
+                    if (i <= step) setStep(i);
+                    else if (validate(step)) setStep(i);
+                  }}
+                >
+                  <span>{step > i ? <Check size={13} /> : `0${i + 1}`}</span>
+                  <small>{s}</small>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

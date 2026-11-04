@@ -46,7 +46,7 @@ export default function CompanyProfileView({
   const [copiedCin, setCopiedCin] = useState(false);
 
   // Find the active FPC row
-  const fpc = state.records.fpcs?.find((f) => f.id === "FPC-ODI-001") || state.records.fpcs?.[0];
+  const fpc = state.records.fpcs?.find((f) => f.id === state.activeFpcId || f.fpcId === state.activeFpcId) || state.records.fpcs?.find((f) => f.id === "FPC-ODI-001") || state.records.fpcs?.[0];
   const fpcDetails = fpc?.details || {};
   const basic = fpcDetails.basic || {};
   const roc = fpcDetails.roc || {};

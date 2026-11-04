@@ -20,6 +20,7 @@ import {
   type FarmerCropRecord, type FarmerLivestockRecord
 } from "@/lib/store";
 import RegistrationSuccessModal from "./RegistrationSuccessModal";
+import { isDemoMode } from "@/lib/moduleConfig";
 import "./baseline-surveys.css";
 
 interface Props {
@@ -414,56 +415,61 @@ export default function BaselineSurveysModule({
   // -------------------------------------------------------------
   const handleSaveForm = async (asDraft = false) => {
     // 1. Role enforcement: Strictly forbidden for TSF Central Admin
-    if (isTsf) {
-      setToast("Access Restricted: TSF Central Admin has read-only access and cannot submit field surveys.");
-      return;
-    }
-
-    const selectedFarmerId = formData.farmerId || formData.respondentId;
-    if (!selectedFarmerId) {
-      setToast("Farmer ID is required. Please select a registered farmer.");
-      return;
-    }
-
-    if (!formData.farmerName?.trim()) {
-      setToast("Farmer Name could not be loaded. Please choose a valid registered farmer.");
-      return;
-    }
-
-    const totalLand = formData.totalLandAcre ?? 0;
-    const irrLand = formData.irrigatedAcre ?? 0;
-    const nonIrrLand = formData.nonIrrigatedAcre ?? 0;
-
-    if (totalLand < 0 || irrLand < 0 || nonIrrLand < 0) {
-      setToast("Landholding values must be non-negative.");
-      return;
-    }
-
-    if (irrLand + nonIrrLand > totalLand) {
-      setToast("Warning: Irrigated + Non-irrigated land cannot exceed Total Land.");
-      return;
-    }
-
-    if (!formData.crops || formData.crops.length === 0) {
-      setToast("Please add at least one crop record.");
-      return;
-    }
-
-    for (const c of formData.crops) {
-      if (!c.cropName?.trim()) {
-        setToast("Please specify a valid crop name for each crop row.");
+    if (!isDemoMode()) {
+      if (isTsf) {
+        setToast("Access Restricted: TSF Central Admin has read-only access and cannot submit field surveys.");
         return;
       }
-      if (c.areaAcre <= 0) {
-        setToast(`Please specify a positive cultivated area for crop ${c.cropName}.`);
+
+      const selectedFarmerId = formData.farmerId || formData.respondentId;
+      if (!selectedFarmerId) {
+        setToast("Farmer ID is required. Please select a registered farmer.");
+        return;
+      }
+
+      if (!formData.farmerName?.trim()) {
+        setToast("Farmer Name could not be loaded. Please choose a valid registered farmer.");
+        return;
+      }
+
+      const totalLand = formData.totalLandAcre ?? 0;
+      const irrLand = formData.irrigatedAcre ?? 0;
+      const nonIrrLand = formData.nonIrrigatedAcre ?? 0;
+
+      if (totalLand < 0 || irrLand < 0 || nonIrrLand < 0) {
+        setToast("Landholding values must be non-negative.");
+        return;
+      }
+
+      if (irrLand + nonIrrLand > totalLand) {
+        setToast("Warning: Irrigated + Non-irrigated land cannot exceed Total Land.");
+        return;
+      }
+
+      if (!formData.crops || formData.crops.length === 0) {
+        setToast("Please add at least one crop record.");
+        return;
+      }
+
+      for (const c of formData.crops) {
+        if (!c.cropName?.trim()) {
+          setToast("Please specify a valid crop name for each crop row.");
+          return;
+        }
+        if (c.areaAcre <= 0) {
+          setToast(`Please specify a positive cultivated area for crop ${c.cropName}.`);
+          return;
+        }
+      }
+
+      if ((formData.plantation === "Yes" || formData.plantation === true) && (formData.plantationAreaAcre ?? 0) <= 0) {
+        setToast("Please enter a valid Plantation Area in acres.");
         return;
       }
     }
 
-    if ((formData.plantation === "Yes" || formData.plantation === true) && (formData.plantationAreaAcre ?? 0) <= 0) {
-      setToast("Please enter a valid Plantation Area in acres.");
-      return;
-    }
+    const selectedFarmerId = formData.farmerId || formData.respondentId || (isDemoMode() ? "F-001" : "");
+    const selectedFarmerName = formData.farmerName?.trim() || (isDemoMode() ? "Mohan Munda" : "");
 
     // Auto-associate new survey strictly with logged-in user's assigned FPC
     const enforcedFpcId = !isTsf ? userFpcId : formData.fpcId;
@@ -476,8 +482,8 @@ export default function BaselineSurveysModule({
       id: formData.id || `RSP-${Date.now().toString().slice(-4)}`,
       verificationStatus: asDraft ? "Draft" : "Submitted",
       submissionDate: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
-      respondentName: formData.farmerName,
-      respondentVillage: formData.village
+      respondentName: selectedFarmerName,
+      respondentVillage: formData.village || "Sanapatna"
     };
 
     // 2. Backend API authorization sync (/api/surveys/responses)

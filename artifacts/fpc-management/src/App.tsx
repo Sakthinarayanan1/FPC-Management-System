@@ -15,11 +15,16 @@ import FpcManagement from "./FpcManagement";
 import ServicesModule from "./ServicesModule";
 import AccessDenied from "./AccessDenied";
 import TsfCentralMonitoring from "./TsfCentralMonitoring";
-import { FEATURE_FLAGS, moduleConfig, isRouteAllowed, isScreenAllowed, getActiveDemoRoles, MODULE_FEATURES, isFinanceRoute, isFinanceEnabled, isBuyerLedgerRoute, isSupplierLedgerRoute, isBuyerLedgerEnabled, isSupplierLedgerEnabled } from "@/lib/moduleConfig";
+import { FEATURE_FLAGS, moduleConfig, isRouteAllowed, isScreenAllowed, getActiveDemoRoles, MODULE_FEATURES, isFinanceRoute, isFinanceEnabled, isBuyerLedgerRoute, isSupplierLedgerRoute, isBuyerLedgerEnabled, isSupplierLedgerEnabled, isDemoMode, isOnboardingOnlyMode } from "@/lib/moduleConfig";
 import RegistrationDashboard from "./RegistrationDashboard";
 import DemoRoleSwitcher from "./DemoRoleSwitcher";
 import FpcAdminOnboardingWizard from "./components/onboarding/FpcAdminOnboardingWizard";
 import TsfAdminOnboardingView from "./components/onboarding/TsfAdminOnboardingView";
+import TsfAdminLogin from "./components/auth/TsfAdminLogin";
+import FpcAdminLogin from "./components/auth/FpcAdminLogin";
+import FpcAccountActivation from "./components/auth/FpcAccountActivation";
+import PortalGateway from "./components/auth/PortalGateway";
+import OnboardingWorkflowCoordinator from "./components/onboarding/OnboardingWorkflowCoordinator";
 import "./index.css";
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
@@ -62,7 +67,7 @@ const activeNavigationNode = (role: Role, path: string) => {
     || nodes.find(node => node.detailRoute && matchesRoute(node.detailRoute, resolvedPath));
 };
 const firstNavigationRoute = (role: Role) => {
-  if (FEATURE_FLAGS.twoFlowModeOnly) {
+  if (role === "TSF Central Admin") {
     return "/fpc-management/onboard";
   }
   const first = getRoleNavigation(role)[0];
@@ -126,6 +131,89 @@ function App() {
     }
   };
 
+  // Restore authenticated session from localStorage on mount
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const stored = localStorage.getItem("fpc_mgmt_session");
+        if (stored) {
+          const session = JSON.parse(stored);
+          if (session?.user && session?.role) {
+            setState(s => ({
+              ...s,
+              currentUser: session.user,
+              role: session.role,
+              activeFpcId: session.user.fpcId || s.activeFpcId || "FPC-ODI-001",
+            }));
+          }
+        }
+      }
+    } catch {}
+  }, [setState]);
+
+  const handleSignOut = async () => {
+    try {
+      if (state.role === "TSF Central Admin") {
+        await fetch("/api/auth/tsf/logout", { method: "POST" });
+      } else {
+        await fetch("/api/auth/fpc/logout", { method: "POST" });
+      }
+    } catch {}
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("fpc_mgmt_session");
+    }
+    setState(s => ({ ...s, currentUser: null, role: null as any }));
+    setToast("You have been signed out successfully.");
+    setPath("/");
+  };
+
+  const handleTsfSuccess = (user: any, token: string) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("fpc_mgmt_session", JSON.stringify({ token, user, role: "TSF Central Admin" }));
+    }
+    setState(s => ({
+      ...s,
+      currentUser: user,
+      role: "TSF Central Admin",
+    }));
+    setToast(`Welcome back, ${user.name || "TSF Administrator"}!`);
+    setPath("/fpc-management/onboard");
+  };
+
+  const handleFpcSuccess = (user: any, token: string) => {
+    const activeFpcId = user.fpcId || "FPC-ODI-001";
+    if (typeof window !== "undefined") {
+      localStorage.setItem("fpc_mgmt_session", JSON.stringify({ token, user, role: "FPC Admin / Manager" }));
+    }
+    setState(s => ({
+      ...s,
+      currentUser: user,
+      role: "FPC Admin / Manager",
+      activeFpcId,
+    }));
+    setToast(`Welcome, ${user.name || "FPC Administrator"}!`);
+    if (user.onboardingCompleted) {
+      setPath("/overview");
+    } else {
+      setPath("/onboard/register");
+    }
+  };
+
+  const handleActivationSuccess = (user: any, token: string) => {
+    const activeFpcId = user.fpcId || "FPC-ODI-001";
+    if (typeof window !== "undefined") {
+      localStorage.setItem("fpc_mgmt_session", JSON.stringify({ token, user, role: "FPC Admin / Manager" }));
+    }
+    setState(s => ({
+      ...s,
+      currentUser: user,
+      role: "FPC Admin / Manager",
+      activeFpcId,
+    }));
+    setToast(`Account activated successfully. Welcome, ${user.name}!`);
+    setPath("/onboard/register");
+  };
+
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 3000); return () => clearTimeout(t) }, [toast]);
   useEffect(() => {
     if (normalizePath(path) === "/fpc-profile/change-history") {
@@ -181,9 +269,10 @@ const isDirectorsStaff = normalizePath(path) === "/fpc-profile/directors-staff" 
 const isFpcProfile = normalizePath(path) === "/fpc-profile" || activeNode?.id === "company-details" || title === "Company Details" || currentLabel === "FPC profile";
 const isFpcManagementRoute = normalizePath(path).startsWith("/fpc-management") || normalizePath(path).startsWith("/tsf/fpc") || ["FPC onboarding", "FPC pending approvals", "FPC directory", "FPC management", "All FPCs", "Onboard New FPC", "Pending Approvals", "FPC List"].includes(currentLabel);
 const isServicesRoute = normalizePath(path) === "/agri-business/services" || currentLabel === "Services" || (role !== "Farmer" && currentLabel === "Input supply" && normalizePath(path).includes("services"));
-const fpcShortName = state.records.fpcs?.[0]?.name ? state.records.fpcs[0].name.replace(/ Farmer Producer Company.*/, " FPC") : "Green Valley FPC";
+const activeFpcRecord = state.records.fpcs?.find(f => f.id === state.activeFpcId || f.fpcId === state.activeFpcId) || state.records.fpcs?.find(f => f.id === "FPC-ODI-001") || state.records.fpcs?.[0];
+const fpcShortName = activeFpcRecord?.name ? activeFpcRecord.name.replace(/ Farmer Producer Company.*/, " FPC") : "Green Valley FPC";
 const exportCompanyProfileCsv = () => {
-  const targetFpc = state.records.fpcs?.find(f => f.id === "FPC-ODI-001") || state.records.fpcs?.[0];
+  const targetFpc = activeFpcRecord;
   const b = targetFpc?.details?.basic || {};
   const r = targetFpc?.details?.roc || {};
   const c = targetFpc?.details?.capital || {};
@@ -397,9 +486,29 @@ const copyCinToClipboard = () => {
   }
 };
 const recordKey = dataMap[currentLabel] || dataMap[current] || "";
-const items = recordKey === "audit" ? state.audit : state.records[recordKey] || [];
+const rawItems = recordKey === "audit" ? state.audit : state.records[recordKey] || [];
+const activeFpc = state.activeFpcId || "FPC-ODI-001";
+const items = useMemo(() => {
+  if (role === "TSF Central Admin") return rawItems;
+  return rawItems.filter(row => !row.fpcId || row.fpcId === activeFpc);
+}, [rawItems, role, activeFpc]);
 const filtered = useMemo(() => items.filter(row => row.status !== "Deleted").filter(row => Object.values(row).join(" ").toLowerCase().includes(search.toLowerCase())).filter(row => filter === "All" || row.status === filter), [items, search, filter]);
-const setRole = (next: Role) => { setState(s => ({ ...s, role: next })); setPath(firstNavigationRoute(next)); setPage(1); setSearch(""); setFilter("All"); setStaffTab("all"); setMenu(false); setToast(`Demo role changed to ${next}`) };
+const setRole = (next: Role) => {
+  const newUser = next === "TSF Central Admin"
+    ? { role: "TSF Central Admin", username: "tsfadmin", name: "TSF Central Operations", email: "tsfadmin@tatasteelfoundation.org", id: "tsf-01", userId: "tsf-01" }
+    : { role: "FPC Admin / Manager", name: "Bijay Mohanty", email: "bijay@greenvalleyfpc.in", fpcId: "FPC-ODI-001", fpcName: "Green Valley Farmer Producer Company Ltd.", onboardingCompleted: true, id: "fpc-01", userId: "fpc-01" };
+  if (typeof window !== "undefined") {
+    localStorage.setItem("fpc_mgmt_session", JSON.stringify({ token: "demo-session-token", user: newUser, role: next }));
+  }
+  setState(s => ({ ...s, role: next, currentUser: newUser, activeFpcId: (newUser as any).fpcId || s.activeFpcId || "FPC-ODI-001" }));
+  setPath(firstNavigationRoute(next));
+  setPage(1);
+  setSearch("");
+  setFilter("All");
+  setStaffTab("all");
+  setMenu(false);
+  setToast(`Active workspace switched to ${next}`);
+};
 useEffect(() => {
   if (!state.role) return;
   if (isFpcManagementRoute && role !== "TSF Central Admin") return;
@@ -449,41 +558,45 @@ const openCreate = (kind: string, initialRow: Record<string, string> = {}) => { 
 const saveNew = () => {
   if (modal === "Add bank account" || modal === "Edit bank account") {
     const isEdit = modal === "Edit bank account";
-    if (!newRow.bankName?.trim() || !newRow.accountHolderName?.trim() || !newRow.accountNumber?.trim() || !newRow.ifscCode?.trim() || !newRow.branchName?.trim()) {
-      setToast("Complete all required fields before saving");
-      return;
-    }
-    const accNum = newRow.accountNumber.trim();
-    if (!/^\d{9,18}$/.test(accNum)) {
-      setToast("Account number must be 9 to 18 digits");
-      return;
-    }
-    if (!isEdit) {
-      if (!newRow.confirmAccountNumber?.trim() || newRow.confirmAccountNumber.trim() !== accNum) {
-        setToast("Account numbers do not match");
+    if (!isDemoMode()) {
+      if (!newRow.bankName?.trim() || !newRow.accountHolderName?.trim() || !newRow.accountNumber?.trim() || !newRow.ifscCode?.trim() || !newRow.branchName?.trim()) {
+        setToast("Complete all required fields before saving");
+        return;
+      }
+      const accNum = newRow.accountNumber.trim();
+      if (!/^\d{9,18}$/.test(accNum)) {
+        setToast("Account number must be 9 to 18 digits");
+        return;
+      }
+      if (!isEdit) {
+        if (!newRow.confirmAccountNumber?.trim() || newRow.confirmAccountNumber.trim() !== accNum) {
+          setToast("Account numbers do not match");
+          return;
+        }
+      }
+      const ifsc = newRow.ifscCode.trim().toUpperCase();
+      if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
+        setToast("Invalid IFSC format (e.g. SBIN0001234)");
+        return;
+      }
+      const duplicate = bankAccountItems.some(b => (!isEdit || b.id !== newRow.id) && b.accountNumber === accNum);
+      if (duplicate) {
+        setToast(`Bank account with number ${accNum} already exists`);
         return;
       }
     }
-    const ifsc = newRow.ifscCode.trim().toUpperCase();
-    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
-      setToast("Invalid IFSC format (e.g. SBIN0001234)");
-      return;
-    }
-    const duplicate = bankAccountItems.some(b => (!isEdit || b.id !== newRow.id) && b.accountNumber === accNum);
-    if (duplicate) {
-      setToast(`Bank account with number ${accNum} already exists`);
-      return;
-    }
+    const accNum = newRow.accountNumber?.trim() || "00123456789";
+    const ifsc = (newRow.ifscCode?.trim() || "SBIN0001234").toUpperCase();
     const isPrimary = newRow.isPrimary === "Yes" || bankAccountItems.length === 0;
     const accountId = isEdit && newRow.id ? newRow.id : `BANK-${String(Date.now()).slice(-4)}`;
     const savedAccount: CompanyBankAccount = {
       id: accountId,
-      bankName: newRow.bankName.trim(),
-      accountHolderName: newRow.accountHolderName.trim(),
+      bankName: newRow.bankName?.trim() || "State Bank of India",
+      accountHolderName: newRow.accountHolderName?.trim() || "Green Valley FPC Ltd",
       accountNumber: accNum,
       accountType: (newRow.accountType as any) || "Current",
       ifscCode: ifsc,
-      branchName: newRow.branchName.trim(),
+      branchName: newRow.branchName?.trim() || "Keonjhar",
       branchAddress: newRow.branchAddress?.trim() || undefined,
       isPrimary,
       status: (newRow.status as any) || "Active",
@@ -515,22 +628,24 @@ const saveNew = () => {
     return;
   }
   if (modal.toLowerCase().includes("licence") || modal.toLowerCase().includes("document")) {
-    if (!newRow.name?.trim() || !newRow.number?.trim() || !newRow.authority?.trim()) {
-      setToast("Complete the required document details before saving");
-      return;
+    if (!isDemoMode()) {
+      if (!newRow.name?.trim() || !newRow.number?.trim() || !newRow.authority?.trim()) {
+        setToast("Complete the required document details before saving");
+        return;
+      }
     }
     const isEdit = Boolean(newRow.id);
     const licenceId = newRow.id || `LIC-${Date.now().toString().slice(-4)}`;
     const savedLicence: LicenseRecord = {
       id: licenceId,
-      name: newRow.name.trim(),
+      name: newRow.name?.trim() || "Statutory Document",
       category: (newRow.category as any) || "Statutory",
-      number: newRow.number.trim(),
-      authority: newRow.authority.trim(),
+      number: newRow.number?.trim() || "LIC-2026-99",
+      authority: newRow.authority?.trim() || "Department of Agriculture",
       issueDate: newRow.issueDate?.trim() || "17/07/2024",
       expiry: newRow.expiry?.trim() || "Permanent",
       status: (newRow.status as any) || "Active",
-      documentName: newRow.documentName?.trim() || `${newRow.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.pdf`,
+      documentName: newRow.documentName?.trim() || `${(newRow.name || "license").toLowerCase().replace(/[^a-z0-9]+/g, "-")}.pdf`,
       fpcId: "FPC-ODI-001",
     };
     setState(s => ({
@@ -548,23 +663,26 @@ const saveNew = () => {
   }
   if (modal.toLowerCase().includes("user")) {
     if (newRow.role === "Director") {
-      if (!newRow.name?.trim() || !newRow.dinPan?.trim() || !newRow.appointmentDate?.trim()) {
-        setToast("Complete the required fields before saving");
-        return;
+      if (!isDemoMode()) {
+        if (!newRow.name?.trim() || !newRow.dinPan?.trim() || !newRow.appointmentDate?.trim()) {
+          setToast("Complete the required fields before saving");
+          return;
+        }
+        const dinPanClean = newRow.dinPan.trim();
+        if (directorItems.some(d => d.dinPan.trim().toLowerCase() === dinPanClean.toLowerCase())) {
+          setToast(`Director with DIN/PAN ${dinPanClean} already exists`);
+          return;
+        }
       }
-      const dinPanClean = newRow.dinPan.trim();
-      if (directorItems.some(d => d.dinPan.trim().toLowerCase() === dinPanClean.toLowerCase())) {
-        setToast(`Director with DIN/PAN ${dinPanClean} already exists`);
-        return;
-      }
+      const dinPanClean = newRow.dinPan?.trim() || `DIN${Date.now().toString().slice(-6)}`;
       const nextSrNo = directorItems.reduce((max, d) => Math.max(max, Number(d.srNo) || 0), 0) + 1;
-      const formatAppt = newRow.appointmentDate.includes("-") ? newRow.appointmentDate.split("-").reverse().join("/") : newRow.appointmentDate;
+      const formatAppt = newRow.appointmentDate ? (newRow.appointmentDate.includes("-") ? newRow.appointmentDate.split("-").reverse().join("/") : newRow.appointmentDate) : "14/06/2021";
       const formatCess = newRow.cessationDate ? (newRow.cessationDate.includes("-") ? newRow.cessationDate.split("-").reverse().join("/") : newRow.cessationDate) : "-";
       const newDirector: DirectorRecord = {
         id: `DIR-${Date.now().toString().slice(-4)}`,
         srNo: nextSrNo,
         dinPan: dinPanClean,
-        name: newRow.name.trim().toUpperCase(),
+        name: (newRow.name?.trim() || "RAMESH NAYAK").toUpperCase(),
         designation: "Director",
         appointmentDate: formatAppt,
         cessationDate: formatCess || "-",
@@ -579,36 +697,68 @@ const saveNew = () => {
       setToast(state.offline ? "Saved offline · Pending sync" : `Director added successfully · ${newDirector.name}`);
       return;
     }
-    if (!newRow.name?.trim() || !newRow.mobile?.trim() || !newRow.role?.trim()) {
-      setToast("Complete the required fields before saving");
-      return;
+    if (!isDemoMode()) {
+      if (!newRow.name?.trim() || !newRow.mobile?.trim() || !newRow.role?.trim()) {
+        setToast("Complete the required fields before saving");
+        return;
+      }
     }
   }
   const type = modal.toLowerCase().includes("message") ? "messages" : modal.toLowerCase().includes("user") ? "users" : modal.toLowerCase().includes("purchase") ? "purchases" : modal.toLowerCase().includes("sale") ? "sales" : modal.toLowerCase().includes("farmer") ? "farmers" : modal.toLowerCase().includes("share") ? "shareholders" : modal.toLowerCase().includes("fil") ? "filings" : modal.toLowerCase().includes("expense") ? "expenses" : modal.toLowerCase().includes("payment") ? "payments" : modal.toLowerCase().includes("buyer") ? "buyers" : modal.toLowerCase().includes("godown") ? "godowns" : modal.toLowerCase().includes("baseline") ? "baseline" : modal.toLowerCase().includes("commodity") ? "commodities" : "documents";
   const required = type === "purchases" ? ["farmer", "commodity", "quantity", "rate"] : type === "sales" ? ["buyer", "commodity", "quantity", "rate"] : type === "farmers" ? ["name", "mobile"] : type === "shareholders" ? ["name", "shares"] : type === "payments" ? ["amount"] : [];
-  if (required.some(field => !newRow[field]?.trim())) { setToast("Complete the required fields before saving"); return }
-  if ((type === "purchases" || type === "sales") && !["kg", "quintal", "tonne", "bag"].includes(newRow.unit || "kg")) { setToast("Choose kg, quintal, tonne or bag for quantity"); return }
-  if (type === "purchases" || type === "sales") {
-    const enteredQuantity = Number(newRow.quantity || 0);
-    const unit = newRow.unit || "kg";
-    if (!Number.isFinite(enteredQuantity) || enteredQuantity <= 0) { setToast("Quantity must be greater than zero"); return }
-    if (!Number.isFinite(Number(newRow.rate)) || Number(newRow.rate) <= 0) { setToast("Rate must be greater than zero"); return }
-    if (type === "sales") {
-      const kg = convert(enteredQuantity, unit, "kg");
-      const commodity = state.records.commodities.find(c => c.name === newRow.commodity);
-      if (!commodity) { setToast("Choose a commodity from the list"); return }
-      if (kg > Number(commodity.stock)) { setToast(`Not enough stock. Available: ${Number(commodity.stock).toLocaleString("en-IN")} kg`); return }
+  if (!isDemoMode()) {
+    if (required.some(field => !newRow[field]?.trim())) { setToast("Complete the required fields before saving"); return }
+    if ((type === "purchases" || type === "sales") && !["kg", "quintal", "tonne", "bag"].includes(newRow.unit || "kg")) { setToast("Choose kg, quintal, tonne or bag for quantity"); return }
+    if (type === "purchases" || type === "sales") {
+      const enteredQuantity = Number(newRow.quantity || 0);
+      const unit = newRow.unit || "kg";
+      if (!Number.isFinite(enteredQuantity) || enteredQuantity <= 0) { setToast("Quantity must be greater than zero"); return }
+      if (!Number.isFinite(Number(newRow.rate)) || Number(newRow.rate) <= 0) { setToast("Rate must be greater than zero"); return }
+      if (type === "sales") {
+        const kg = convert(enteredQuantity, unit, "kg");
+        const commodity = state.records.commodities.find(c => c.name === newRow.commodity);
+        if (!commodity) { setToast("Choose a commodity from the list"); return }
+        if (kg > Number(commodity.stock)) { setToast(`Not enough stock. Available: ${Number(commodity.stock).toLocaleString("en-IN")} kg`); return }
+      }
+    }
+  }
+  const effectiveRow = { ...newRow };
+  if (isDemoMode()) {
+    if (type === "purchases") {
+      effectiveRow.farmer = effectiveRow.farmer || "Mohan Munda";
+      effectiveRow.commodity = effectiveRow.commodity || "Paddy";
+      effectiveRow.quantity = effectiveRow.quantity || "100";
+      effectiveRow.rate = effectiveRow.rate || "25";
+      effectiveRow.unit = effectiveRow.unit || "kg";
+    } else if (type === "sales") {
+      effectiveRow.buyer = effectiveRow.buyer || "Odisha Agro Traders";
+      effectiveRow.commodity = effectiveRow.commodity || "Paddy";
+      effectiveRow.quantity = effectiveRow.quantity || "100";
+      effectiveRow.rate = effectiveRow.rate || "30";
+      effectiveRow.unit = effectiveRow.unit || "kg";
+    } else if (type === "farmers") {
+      effectiveRow.name = effectiveRow.name || "Demo Farmer";
+      effectiveRow.mobile = effectiveRow.mobile || "9876543210";
+    } else if (type === "shareholders") {
+      effectiveRow.name = effectiveRow.name || "Demo Shareholder";
+      effectiveRow.shares = effectiveRow.shares || "50";
+    } else if (type === "payments") {
+      effectiveRow.amount = effectiveRow.amount || "1000";
+    } else if (type === "users") {
+      effectiveRow.name = effectiveRow.name || "Demo Staff";
+      effectiveRow.mobile = effectiveRow.mobile || "9876543210";
+      effectiveRow.role = effectiveRow.role || "Accountant / Finance Officer";
     }
   }
   const idPrefix = type === "purchases" ? "PUR-2026-" : type === "sales" ? "SAL-2026-" : type === "farmers" ? "F-" : type === "shareholders" ? "SH-" : type === "payments" ? "PAY-" : type === "expenses" ? "EXP-" : type === "filings" ? "FIL-" : type === "users" ? "USR-" : "REC-";
   const targetStatus = type === "payments" ? "Paid" : type === "users" ? "Active" : "Submitted";
-  const row: RecordRow = { id: `${idPrefix}${String(Date.now()).slice(-4)}`, fpcId: "FPC-ODI-001", status: state.offline ? "Draft" : targetStatus, ...(state.offline ? { pendingStatus: targetStatus } : {}), date: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }), ...(type === "users" ? { lastLogin: "Just now" } : {}), ...newRow };
-  if (type === "purchases" || type === "sales") { row.quantity = Number(newRow.quantity || 0); row.rate = Number(newRow.rate || 0); row.unit = newRow.unit || "kg"; row.quantityKg = convert(row.quantity, row.unit, "kg"); row.amount = row.quantityKg * row.rate }
-  if (type === "shareholders") { row.shares = Number(newRow.shares || 0); row.faceValue = 100; row.capital = row.shares * 100; row.certificate = `SC-${row.id.slice(-3)}`; row.folio = `FL-${row.id.slice(-3)}` }
+  const row: RecordRow = { id: `${idPrefix}${String(Date.now()).slice(-4)}`, fpcId: "FPC-ODI-001", status: state.offline ? "Draft" : targetStatus, ...(state.offline ? { pendingStatus: targetStatus } : {}), date: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }), ...(type === "users" ? { lastLogin: "Just now" } : {}), ...effectiveRow };
+  if (type === "purchases" || type === "sales") { row.quantity = Number(effectiveRow.quantity || 0); row.rate = Number(effectiveRow.rate || 0); row.unit = effectiveRow.unit || "kg"; row.quantityKg = convert(row.quantity, row.unit, "kg"); row.amount = row.quantityKg * row.rate }
+  if (type === "shareholders") { row.shares = Number(effectiveRow.shares || 0); row.faceValue = 100; row.capital = row.shares * 100; row.certificate = `SC-${row.id.slice(-3)}`; row.folio = `FL-${row.id.slice(-3)}` }
   if (type === "sales") { const commodity = state.records.commodities.find(c => c.name === row.commodity); row.cost = Number(row.quantityKg || 0) * Number(commodity?.purchaseRate || 0); row.margin = row.amount - row.cost; }
   setState(s => ({ ...s, records: { ...s.records, [type]: [row, ...(s.records[type] || [])] } })); if (type === "users") setStaffTab("all");
   if (type === "payments") {
-    const amount = Number(newRow.amount || 0); const farmer = newRow.farmer || "Ravi Kumar";
+    const amount = Number(effectiveRow.amount || 0); const farmer = effectiveRow.farmer || "Ravi Kumar";
     setState(s => ({ ...s, records: { ...s.records, ledger: [{ id: `LED-${Date.now()}`, farmer, farmerId: farmer === "Ravi Kumar" ? "F-001" : "", date: row.date, description: `Payment · ${row.id}`, debit: amount, credit: 0, balance: 0 }, ...s.records.ledger] } }));
   }
   log("created", type === "users" ? "Directors and Staff" : type, row.id, null, row);
@@ -617,27 +767,116 @@ const saveNew = () => {
 };
 const reset = () => { resetDemo(); setPath("/overview"); setModal(""); setToast("Demo data reset to original seed") };
 
-const isPublicOnboarding = normPath === "/onboard/register" || normPath.startsWith("/onboard/register");
-if (isPublicOnboarding) {
-  const searchStr = path.includes("?") ? path.slice(path.indexOf("?")) : window.location.search;
-  const params = new URLSearchParams(searchStr);
-  const token = params.get("token") || "";
-  return (
-    <FpcAdminOnboardingWizard
-      token={token}
-      state={state}
-      setState={setState}
-      setToast={setToast}
-      onExit={() => setPath("/fpc-management/onboard")}
-    />
-  );
-}
+  // STRICT REQUIREMENT: ONBOARDING ONLY 6-SCREEN WORKFLOW
+  if (isOnboardingOnlyMode()) {
+    return (
+      <OnboardingWorkflowCoordinator
+        state={state}
+        setState={setState}
+        setToast={setToast}
+      />
+    );
+  }
 
-if (!state.role) {
-  const visibleRoles = getActiveDemoRoles(roles);
-  const targetLoginRole = visibleRoles[0] || (FEATURE_FLAGS.twoFlowModeOnly ? "TSF Central Admin" : "FPC Admin / Manager");
-  return <div className="login-page"><div className="login-panel"><div className="brand-mark"><Leaf size={21} /></div><div className="eyebrow">{FEATURE_FLAGS.twoFlowModeOnly ? "TSF OPERATIONS · TWO-FLOW DEMONSTRATION" : "FIELD OPERATIONS · DEMO ENVIRONMENT"}</div><h1>Good work<br /><em>starts here.</em></h1><p className="login-intro">{FEATURE_FLAGS.twoFlowModeOnly ? "Two-Flow Demonstration: TSF Admin initiates onboarding invitations · FPC Admin self-registers via email." : "A practical operations desk for Green Valley Farmer Producer Company."}</p><div className="login-form"><label>Mobile number</label><input placeholder="Enter your mobile number" value={loginMobile} onChange={e => setLoginMobile(e.target.value)} /><label>One-time password</label><div className="otp-row"><input aria-label="One-time password" placeholder="6-digit OTP" maxLength={6} value={loginOtp} onChange={e => setLoginOtp(e.target.value.replace(/\D/g, "").slice(0, 6))} /><span>Demo OTP<br /><b>123456</b></span></div><button className="btn-primary" onClick={() => { if (loginMobile.trim() && /^\d{6}$/.test(loginOtp)) setRole(targetLoginRole); else setToast("Enter a mobile number and any 6-digit OTP") }}>Continue with OTP</button><p className="hint">Any 6-digit OTP works in this prototype.</p></div></div><div className="role-panel"><div className="eyebrow">DEMO ROLE PICKER <span>{visibleRoles.length} profile{visibleRoles.length === 1 ? "" : "s"}</span></div><h2>Choose a workspace</h2><p>{FEATURE_FLAGS.twoFlowModeOnly ? "Select TSF Central Admin to initiate FPC onboarding invitations." : "Jump straight into a role-specific view. No password needed."}</p><div className="role-grid">{visibleRoles.map((r, i) => { const Icon = iconFor(r); return <button className="role-card" key={r} onClick={() => setRole(r)} data-testid={`role-${slug(r)}`}><span className={`role-icon role-tone-${i % 6}`}><Icon size={18} /></span><span><b>{r}</b><small>{roleUsers[r].name} · {roleUsers[r].mobile}</small></span><span className="role-arrow">↗</span></button> })}</div><footer>FPC Development Project, supported by Citibank. Implemented with Tata Steel Foundation.</footer></div></div>
-}
+  // 1. FLOW 1: Dedicated TSF Admin Login page
+  if (normPath === "/tsf/login") {
+    if (state.role === "TSF Central Admin") {
+      setPath("/fpc-management/onboard");
+      return null;
+    }
+    return (
+      <TsfAdminLogin
+        onSuccess={handleTsfSuccess}
+        onNavigate={setPath}
+        setToast={setToast}
+      />
+    );
+  }
+
+  // 2. FLOW 3: Dedicated FPC Admin Login page
+  if (normPath === "/fpc/login") {
+    if (state.role === "FPC Admin / Manager") {
+      setPath(state.currentUser?.onboardingCompleted ? "/overview" : "/onboard/register");
+      return null;
+    }
+    return (
+      <FpcAdminLogin
+        onSuccess={handleFpcSuccess}
+        onNavigate={setPath}
+        setToast={setToast}
+      />
+    );
+  }
+
+  // 3. FLOW 3: Dedicated FPC Account Activation page (opened from email invitation)
+  if (normPath === "/onboard/activate" || normPath === "/fpc/activate") {
+    const searchStr = path.includes("?") ? path.slice(path.indexOf("?")) : (typeof window !== "undefined" ? window.location.search : "");
+    const params = new URLSearchParams(searchStr);
+    const initialToken = params.get("token") || "";
+    return (
+      <FpcAccountActivation
+        initialToken={initialToken}
+        onSuccess={handleActivationSuccess}
+        onNavigate={setPath}
+        setToast={setToast}
+      />
+    );
+  }
+
+  // 4. FLOW 4: Existing 8-Step FPC Company Registration Wizard
+  const isPublicOnboarding = normPath === "/onboard/register" || normPath.startsWith("/onboard/register");
+  if (isPublicOnboarding) {
+    if (state.role !== "FPC Admin / Manager") {
+      setPath("/fpc/login");
+      return null;
+    }
+    const searchStr = path.includes("?") ? path.slice(path.indexOf("?")) : (typeof window !== "undefined" ? window.location.search : "");
+    const params = new URLSearchParams(searchStr);
+    const token = params.get("token") || (state.currentUser as any)?.invitationToken || (state.records.fpcInvitations?.[0] as any)?.token || "";
+    return (
+      <FpcAdminOnboardingWizard
+        token={token}
+        state={state}
+        setState={setState}
+        setToast={setToast}
+        onExit={() => {
+          if (state.role === "TSF Central Admin") {
+            setPath("/fpc-management/onboard");
+          } else {
+            setPath("/overview");
+          }
+        }}
+      />
+    );
+  }
+
+  // 5. Unauthenticated user handling
+  if (!state.role && !state.currentUser) {
+    if (normPath.startsWith("/tsf")) {
+      return (
+        <TsfAdminLogin
+          onSuccess={handleTsfSuccess}
+          onNavigate={setPath}
+          setToast={setToast}
+        />
+      );
+    }
+    if (normPath.startsWith("/fpc")) {
+      return (
+        <FpcAdminLogin
+          onSuccess={handleFpcSuccess}
+          onNavigate={setPath}
+          setToast={setToast}
+        />
+      );
+    }
+    // Landing gateway for unauthenticated users
+    return (
+      <PortalGateway
+        onNavigate={setPath}
+      />
+    );
+  }
 
 const routeFor = (name: string) => {
   if (name.startsWith("/")) return name;
@@ -878,15 +1117,16 @@ const renderDash = () => {
         );
       }
       const norm = normalizePath(path);
-      if (norm === "/fpc-management/onboard" || currentLabel === "FPC onboarding" || currentLabel === "Onboard New FPC") {
+      if (norm === "/fpc-management/onboard" || currentLabel === "FPC onboarding" || currentLabel === "Onboard New FPC" || norm === "/tsf/invitations" || norm === "/tsf/onboard") {
         return (
-          <FpcManagement
+          <TsfAdminOnboardingView
             state={state}
             setState={setState}
-            role={role}
-            screen="FPC onboarding"
             setToast={setToast}
+            role={role}
             go={(dest) => setPath(routeFor(dest))}
+            activeFlow={activeFlow}
+            onSelectFlow={handleFlowSelect}
           />
         );
       }
@@ -927,6 +1167,16 @@ const renderDash = () => {
       );
     }
     if (isTsf || normalizePath(path).startsWith("/tsf")) {
+      if (role !== "TSF Central Admin") {
+        return (
+          <AccessDenied
+            role={role}
+            attemptedPath={path}
+            onGoHome={() => setPath("/overview")}
+            onGoProfile={() => setPath("/fpc-profile")}
+          />
+        );
+      }
       return (
         <TsfCentralMonitoring
           state={state}
@@ -1308,7 +1558,7 @@ const renderDash = () => {
   };
   return <div className={`app-shell ${isTsf ? "tsf-shell" : ""} ${isMember ? "member-shell" : ""}`}>
     <FpcNavigation role={role} currentPath={path} onNavigate={setPath} username={user.name} initials={user.initials} offline={state.offline} onOfflineToggle={() => setState(s => ({ ...s, offline: !s.offline }))} badges={moduleConfig.demoMode ? {} : { approvals: 7 }} recordName={recordName} showBreadcrumbs={false} />
-    <main className="main-area"><header className="topbar"><NavigationBreadcrumbs role={role} currentPath={path} onNavigate={setPath} recordName={recordName} /><div className="top-actions"><span className="secure-pill"><ShieldCheck size={14} /> Demo mode</span><select aria-label="Select language" value={language} onChange={e => { setLanguage(e.target.value); setState(s => ({ ...s, language: e.target.value })) }}><option>English</option><option>Hindi</option><option>Odia</option></select><button className="top-icon" title="Notifications" onClick={() => setModal("notifications")}><Bell size={18} /><i /></button><DemoRoleSwitcher currentRole={role} onSelectRole={setRole} onSignOut={() => setState(s => ({ ...s, role: null as any }))} activeFlow={activeFlow} onSelectFlow={handleFlowSelect} /><div className="header-user-badge" title={`${user.name} (${role})`}><span className="avatar small-avatar" style={{ width: "24px", height: "24px", fontSize: "10px", fontWeight: 700, background: "#1b5e20", color: "#ffffff", borderRadius: "50%", display: "grid", placeItems: "center" }}>{user.initials}</span><span style={{ fontSize: "11px", fontWeight: 600, color: "#253b2d" }} className="header-user-name">{user.name}</span></div></div></header>
+    <main className="main-area"><header className="topbar"><NavigationBreadcrumbs role={role} currentPath={path} onNavigate={setPath} recordName={recordName} /><div className="top-actions"><span className="secure-pill"><ShieldCheck size={14} /> Demo mode</span><select aria-label="Select language" value={language} onChange={e => { setLanguage(e.target.value); setState(s => ({ ...s, language: e.target.value })) }}><option>English</option><option>Hindi</option><option>Odia</option></select><button className="top-icon" title="Notifications" onClick={() => setModal("notifications")}><Bell size={18} /><i /></button><DemoRoleSwitcher currentRole={role} onSelectRole={setRole} onSignOut={handleSignOut} activeFlow={activeFlow} onSelectFlow={handleFlowSelect} /><div className="header-user-badge" title={`${user.name} (${role}) · Click to Sign Out`} onClick={handleSignOut} style={{ cursor: "pointer" }}><span className="avatar small-avatar" style={{ width: "24px", height: "24px", fontSize: "10px", fontWeight: 700, background: "#1b5e20", color: "#ffffff", borderRadius: "50%", display: "grid", placeItems: "center" }}>{user.initials}</span><span style={{ fontSize: "11px", fontWeight: 600, color: "#253b2d" }} className="header-user-name">{user.name}</span></div></div></header>
       <div className="page-wrap">{!isFpcManagementRoute && !isServicesRoute && !isTsf && <div className="page-heading"><div><div className="eyebrow">{getActiveNavigationModule(role, path) || (isTsf ? "PORTFOLIO VIEW" : isMember ? "YOUR MEMBERSHIP" : "OPERATIONS · FY 2026–27")}</div><h1>{isLicencesPage ? "Company Registration & Licences" : isFarmerDetail ? (farmerRecord?.name || "Farmer Details") : isFarmerEdit ? `Edit Farmer · ${farmerRecord?.name || farmerIdFromPath}` : isShareholderDetail ? (shareholderRecord?.name || "Shareholder Details") : (labels[language]?.[title] || title)}</h1><p>{isLicencesPage ? "View and manage official company registration details, statutory registrations, and compliance documents." : isFarmerDetail ? `Profile, KYC, baseline and landholding details for ${farmerRecord?.name || "farmer"} (${farmerIdFromPath}).` : isFarmerEdit ? `Update profile and baseline details for ${farmerRecord?.name || "farmer"} (${farmerIdFromPath}). Farmer ID is permanently preserved.` : isShareholderDetail ? `Official share allotment, folio, and distinctive number details for ${shareholderRecord?.name || "shareholder"} (${shareholderIdFromPath}).` : isTsf ? "A clearer view of delivery across partner FPCs." : isMember ? "Your produce, benefits and company updates in one place." : title === "Overview" ? (moduleConfig.demoMode ? "FPC Operations Desk · Registration Suite" : "Good morning, Bijay. Here is the picture across your FPC.") : `Manage ${title.toLowerCase()} for Green Valley Farmer Producer Company.`}</p></div><div className="heading-right">{role === "Director / Board Member / Auditor" && <span className="readonly-pill"><ShieldCheck size={14} /> Read-only access</span>}<span className={`network-pill ${state.offline ? "network-offline" : ""}`}><span />{state.offline ? "Offline · queued" : "Online"}</span><button className="help-button" onClick={() => setToast("Help centre · Contact the Green Valley FPC office")}><CircleHelp size={17} /> Help</button></div></div>}{dashboard ? renderDash() : listView()}</div>
       <footer className="app-footer"><span>FPC Development Project, supported by Citibank. Implemented with Tata Steel Foundation.</span><span>Prototype · Browser data only</span></footer></main>
     {modal && <Modal title={modal.startsWith("detail:bank:") ? "Bank account details" : modal.startsWith("detail:licence:") ? "Document details" : modal.startsWith("detail:") ? `Record details · ${modal.slice(7)}` : modal === "reset" ? "Reset demo data" : modal === "notifications" ? "Notifications" : modal === "Add bank account" ? "Add bank account" : modal === "Edit bank account" ? "Edit bank account" : modal === "Add licence / document" ? "Add licence / document" : modal === "Edit licence / document" ? "Edit licence / document" : modal.toLowerCase().includes("user") && newRow.role === "Director" ? "Add director" : modal} onClose={() => setModal("")}>{modal === "reset" ? <div className="modal-content"><p>This restores the original Green Valley demo dataset. Any records created during this session will be removed.</p><button className="btn-danger" onClick={reset}>Reset demo data</button></div> : modal === "notifications" ? <div className="notification-list">{state.notifications.map(n => <div key={n.id}><span className="unread-dot" /><span><b>{n.title}</b><small>{n.date}</small></span></div>)}</div> : modal.startsWith("detail:bank:") ? <div className="detail-modal" style={{ display: "block" }}>{(() => { const acc = bankAccountItems.find(b => b.id === modal.slice(12)); if (!acc) return <p>Account record not found.</p>; return <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 18px", width: "100%" }}><div><small style={{ fontSize: "9px", color: "#89958d", textTransform: "uppercase", display: "block" }}>Bank Name</small><p style={{ fontSize: "13px", fontWeight: 600, margin: "4px 0 0", color: "#2c4237" }}>{acc.bankName}</p></div><div><small style={{ fontSize: "9px", color: "#89958d", textTransform: "uppercase", display: "block" }}>Status & Primary</small><div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "4px" }}><Status status={acc.status} />{acc.isPrimary && <span className="status-chip green" style={{ marginLeft: "6px" }}><i />Primary</span>}</div></div><div><small style={{ fontSize: "9px", color: "#89958d", textTransform: "uppercase", display: "block" }}>Account Holder</small><p style={{ fontSize: "11px", margin: "4px 0 0", color: "#34483a" }}>{acc.accountHolderName}</p></div><div><small style={{ fontSize: "9px", color: "#89958d", textTransform: "uppercase", display: "block" }}>Account Type</small><p style={{ fontSize: "11px", margin: "4px 0 0", color: "#34483a" }}>{acc.accountType}</p></div><div><small style={{ fontSize: "9px", color: "#89958d", textTransform: "uppercase", display: "block" }}>Account Number</small><p style={{ fontSize: "12px", fontFamily: "monospace", margin: "4px 0 0", color: "#2c4237" }}>{acc.accountNumber}</p></div><div><small style={{ fontSize: "9px", color: "#89958d", textTransform: "uppercase", display: "block" }}>IFSC Code</small><p style={{ fontSize: "12px", fontFamily: "monospace", margin: "4px 0 0", color: "#2c4237" }}>{acc.ifscCode}</p></div><div style={{ gridColumn: "1/-1" }}><small style={{ fontSize: "9px", color: "#89958d", textTransform: "uppercase", display: "block" }}>Branch Name & Address</small><p style={{ fontSize: "11px", margin: "4px 0 0", color: "#34483a" }}><b>{acc.branchName}</b>{acc.branchAddress ? ` · ${acc.branchAddress}` : ""}</p></div></div>; })()}<div className="modal-buttons" style={{ marginTop: "20px" }}><button className="btn-outline" onClick={() => setModal("")}>Close</button></div></div> : modal.startsWith("detail:licence:") ? <div className="detail-modal" style={{ display: "block" }}>{(() => { const lic = licenceItems.find(l => l.id === modal.slice(15)); if (!lic) return <p>Document record not found.</p>; return <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 18px", width: "100%" }}><div style={{ gridColumn: "1/-1" }}><small style={{ fontSize: "9px", color: "#89958d", textTransform: "uppercase", display: "block" }}>Document Name</small><p style={{ fontSize: "14px", fontWeight: 700, margin: "4px 0 0", color: "#223929" }}>{lic.name}</p></div><div><small style={{ fontSize: "9px", color: "#89958d", textTransform: "uppercase", display: "block" }}>Category & Status</small><div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "4px" }}><span className="status-chip slate">{lic.category || "Statutory"}</span><Status status={lic.status} /></div></div><div><small style={{ fontSize: "9px", color: "#89958d", textTransform: "uppercase", display: "block" }}>Registration / Licence Number</small><p style={{ fontSize: "12px", fontFamily: "monospace", fontWeight: 600, margin: "4px 0 0", color: "#223929" }}>{lic.number}</p></div><div><small style={{ fontSize: "9px", color: "#89958d", textTransform: "uppercase", display: "block" }}>Issuing Authority</small><p style={{ fontSize: "11px", margin: "4px 0 0", color: "#34483a" }}>{lic.authority}</p></div><div><small style={{ fontSize: "9px", color: "#89958d", textTransform: "uppercase", display: "block" }}>Issue Date</small><p style={{ fontSize: "11px", margin: "4px 0 0", color: "#34483a" }}>{lic.issueDate}</p></div><div><small style={{ fontSize: "9px", color: "#89958d", textTransform: "uppercase", display: "block" }}>Validity / Expiry</small><p style={{ fontSize: "11px", fontWeight: 600, margin: "4px 0 0", color: "#223929" }}>{lic.expiry}</p></div><div style={{ gridColumn: "1/-1" }}><small style={{ fontSize: "9px", color: "#89958d", textTransform: "uppercase", display: "block" }}>Attached Document File</small><p style={{ fontSize: "11px", margin: "4px 0 0", color: "#1b5e20", display: "flex", alignItems: "center", gap: "5px" }}><FileText size={14} /> {lic.documentName || "Not attached"}</p></div></div>; })()}<div className="modal-buttons" style={{ marginTop: "20px" }}><button className="btn-outline" onClick={() => setModal("")}>Close</button><button className="btn-primary" onClick={() => { setToast("Document certificate downloaded"); setModal(""); }}><Download size={15} /> Download document</button></div></div> : modal.startsWith("detail:") ? <div className="detail-modal"><p>Record information from the local demo workspace.</p><Status status={items.find(x => x.id === modal.slice(7))?.status || "Approved"} /><button className="btn-outline" onClick={() => setToast("Record detail copied to clipboard")}>Copy record reference</button></div> : <div className="modal-content"><div className="form-grid">{modal === "Add bank account" || modal === "Edit bank account" ? <>
@@ -1332,18 +1582,18 @@ const renderDash = () => {
       <label>Status *<select value={newRow.status || "Active"} onChange={e => setNewRow(v => ({ ...v, status: e.target.value }))}><option value="Active">Active</option><option value="Expiring soon">Expiring soon</option><option value="Under Renewal">Under Renewal</option><option value="Expired">Expired</option></select></label>
       <label>Attachment File Name<input placeholder="e.g. certificate.pdf" value={newRow.documentName || ""} onChange={e => setNewRow(v => ({ ...v, documentName: e.target.value }))} /></label>
     </> : modal.toLowerCase().includes("user") ? (newRow.role === "Director" ? <>
-      <label>Full name *<input required placeholder="e.g. ARJUN MARDI" value={newRow.name || ""} onChange={e => setNewRow(v => ({ ...v, name: e.target.value }))} /></label>
-      <label>DIN / PAN *<input required placeholder="e.g. 10615206" value={newRow.dinPan || ""} onChange={e => setNewRow(v => ({ ...v, dinPan: e.target.value }))} /></label>
-      <label>Role *<select required value={newRow.role || "Director"} onChange={e => { const r = e.target.value; if (r === "Director") setNewRow(v => ({ ...v, role: r })); else setNewRow(v => ({ name: v.name || "", role: r })) }}><option value="Director">Director</option>{roles.map(r => <option key={r} value={r}>{r}</option>)}</select></label>
-      <label>Date of Appointment *<input type="date" required value={newRow.appointmentDate || ""} onChange={e => setNewRow(v => ({ ...v, appointmentDate: e.target.value }))} /></label>
+      <label>Full name *<input required={!isDemoMode()} placeholder="e.g. ARJUN MARDI" value={newRow.name || ""} onChange={e => setNewRow(v => ({ ...v, name: e.target.value }))} /></label>
+      <label>DIN / PAN *<input required={!isDemoMode()} placeholder="e.g. 10615206" value={newRow.dinPan || ""} onChange={e => setNewRow(v => ({ ...v, dinPan: e.target.value }))} /></label>
+      <label>Role *<select required={!isDemoMode()} value={newRow.role || "Director"} onChange={e => { const r = e.target.value; if (r === "Director") setNewRow(v => ({ ...v, role: r })); else setNewRow(v => ({ name: v.name || "", role: r })) }}><option value="Director">Director</option>{roles.map(r => <option key={r} value={r}>{r}</option>)}</select></label>
+      <label>Date of Appointment *<input type="date" required={!isDemoMode()} value={newRow.appointmentDate || ""} onChange={e => setNewRow(v => ({ ...v, appointmentDate: e.target.value }))} /></label>
       <label>Cessation Date (Optional)<input type="date" value={newRow.cessationDate || ""} onChange={e => setNewRow(v => ({ ...v, cessationDate: e.target.value }))} /></label>
       <label>Signatory *<select value={newRow.signatory || "Yes"} onChange={e => setNewRow(v => ({ ...v, signatory: e.target.value }))}><option value="Yes">Yes</option><option value="No">No</option></select></label>
     </> : <>
-      <label>Name *<input required placeholder="Enter name" value={newRow.name || ""} onChange={e => setNewRow(v => ({ ...v, name: e.target.value }))} /></label>
-      <label>Mobile *<input required placeholder="Enter mobile" value={newRow.mobile || ""} onChange={e => setNewRow(v => ({ ...v, mobile: e.target.value }))} /></label>
-      <label>Role *<select required value={newRow.role || ""} onChange={e => { const r = e.target.value; if (r === "Director") setNewRow(v => ({ name: v.name || "", role: "Director", signatory: "Yes" })); else setNewRow(v => ({ ...v, role: r })) }}><option value="" disabled>Select role</option><option value="Director">Director</option>{roles.map(r => <option key={r} value={r}>{r}</option>)}</select></label>
+      <label>Name *<input required={!isDemoMode()} placeholder="Enter name" value={newRow.name || ""} onChange={e => setNewRow(v => ({ ...v, name: e.target.value }))} /></label>
+      <label>Mobile *<input required={!isDemoMode()} placeholder="Enter mobile" value={newRow.mobile || ""} onChange={e => setNewRow(v => ({ ...v, mobile: e.target.value }))} /></label>
+      <label>Role *<select required={!isDemoMode()} value={newRow.role || ""} onChange={e => { const r = e.target.value; if (r === "Director") setNewRow(v => ({ name: v.name || "", role: "Director", signatory: "Yes" })); else setNewRow(v => ({ ...v, role: r })) }}><option value="" disabled>Select role</option><option value="Director">Director</option>{roles.map(r => <option key={r} value={r}>{r}</option>)}</select></label>
       <label>Email<input type="email" placeholder="Enter email" value={newRow.email || ""} onChange={e => setNewRow(v => ({ ...v, email: e.target.value }))} /></label>
-    </>) : (modal.toLowerCase().includes("purchase") ? ["farmer", "commodity", "quantity", "unit", "rate"] : modal.toLowerCase().includes("sale") ? ["buyer", "commodity", "quantity", "unit", "rate"] : modal.toLowerCase().includes("farmer") ? ["name", "mobile", "village", "land", "crop"] : modal.toLowerCase().includes("share") ? ["name", "farmerId", "shares"] : modal.toLowerCase().includes("payment") ? ["farmer", "amount", "method", "reference"] : modal.toLowerCase().includes("expense") ? ["name", "amount", "category"] : modal.toLowerCase().includes("fil") ? ["name", "due", "owner"] : modal.toLowerCase().includes("message") ? ["title", "audience", "message"] : modal.toLowerCase().includes("commodity") ? ["name", "hsn", "baseUnit", "purchaseRate", "saleRate", "threshold"] : modal.toLowerCase().includes("baseline") ? ["village", "season", "crop", "area", "expectedYield"] : ["name", "description", "amount"]).map(field => <label key={field}>{field.replace(/([A-Z])/g, " $1")}<input required placeholder={field === "unit" ? "kg / quintal / tonne / bag" : `Enter ${field}`} value={newRow[field] || ""} onChange={e => setNewRow(v => ({ ...v, [field]: e.target.value }))} /></label>)}</div>{modal.toLowerCase().includes("purchase") && <div className="inline-callout"><Truck size={16} /> Purchase will be submitted for approval. Stock increases after approval.</div>}{modal.toLowerCase().includes("sale") && <div className="inline-callout"><Activity size={16} /> Sale margin is calculated as selling price minus weighted cost.</div>}<div className="modal-buttons"><button className="btn-outline" onClick={() => setModal("")}>Cancel</button><button className="btn-primary" onClick={saveNew}>{modal.includes("bank account") ? (modal === "Edit bank account" ? "Update bank account" : "Save bank account") : modal.includes("licence") || modal.includes("document") ? (modal.startsWith("Edit") ? "Update document" : "Save document") : modal.toLowerCase().includes("user") && newRow.role === "Director" ? "Save director" : "Save as draft"} <Check size={15} /></button></div></div>}</Modal>}
+    </>) : (modal.toLowerCase().includes("purchase") ? ["farmer", "commodity", "quantity", "unit", "rate"] : modal.toLowerCase().includes("sale") ? ["buyer", "commodity", "quantity", "unit", "rate"] : modal.toLowerCase().includes("farmer") ? ["name", "mobile", "village", "land", "crop"] : modal.toLowerCase().includes("share") ? ["name", "farmerId", "shares"] : modal.toLowerCase().includes("payment") ? ["farmer", "amount", "method", "reference"] : modal.toLowerCase().includes("expense") ? ["name", "amount", "category"] : modal.toLowerCase().includes("fil") ? ["name", "due", "owner"] : modal.toLowerCase().includes("message") ? ["title", "audience", "message"] : modal.toLowerCase().includes("commodity") ? ["name", "hsn", "baseUnit", "purchaseRate", "saleRate", "threshold"] : modal.toLowerCase().includes("baseline") ? ["village", "season", "crop", "area", "expectedYield"] : ["name", "description", "amount"]).map(field => <label key={field}>{field.replace(/([A-Z])/g, " $1")}<input required={!isDemoMode()} placeholder={field === "unit" ? "kg / quintal / tonne / bag" : `Enter ${field}`} value={newRow[field] || ""} onChange={e => setNewRow(v => ({ ...v, [field]: e.target.value }))} /></label>)}</div>{modal.toLowerCase().includes("purchase") && <div className="inline-callout"><Truck size={16} /> Purchase will be submitted for approval. Stock increases after approval.</div>}{modal.toLowerCase().includes("sale") && <div className="inline-callout"><Activity size={16} /> Sale margin is calculated as selling price minus weighted cost.</div>}<div className="modal-buttons"><button className="btn-outline" onClick={() => setModal("")}>Cancel</button><button className="btn-primary" onClick={saveNew}>{modal.includes("bank account") ? (modal === "Edit bank account" ? "Update bank account" : "Save bank account") : modal.includes("licence") || modal.includes("document") ? (modal.startsWith("Edit") ? "Update document" : "Save document") : modal.toLowerCase().includes("user") && newRow.role === "Director" ? "Save director" : "Save as draft"} <Check size={15} /></button></div></div>}</Modal>}
     {toast && <div className="toast"><span><Check size={15} /></span>{toast}{undo && toast.includes("Undo") && <button className="undo-button" onClick={undoDelete}>Undo</button>}<button onClick={() => setToast("")}><X size={14} /></button></div>}
   </div>;
 }

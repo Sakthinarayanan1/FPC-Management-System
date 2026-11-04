@@ -30,6 +30,7 @@ import {
   X,
 } from "lucide-react";
 import type { FpcInvitation, RecordRow, State } from "@/lib/store";
+import { isDemoMode } from "@/lib/moduleConfig";
 import { locationMaster } from "../../FpcManagement";
 import "../../fpc-management.css";
 
@@ -39,6 +40,22 @@ interface FpcAdminOnboardingWizardProps {
   setState: (updater: State | ((s: State) => State)) => void;
   setToast: (msg: string) => void;
   onExit?: () => void;
+  onSubmitted?: (result: {
+    fpcId: string;
+    companyName: string;
+    adminName: string;
+    adminEmail: string;
+    submittedAt: string;
+  }) => void;
+  initialSessionData?: {
+    companyName?: string;
+    adminName?: string;
+    adminEmail?: string;
+    adminMobile?: string;
+    district?: string;
+    state?: string;
+  };
+  onboardingOnly?: boolean;
 }
 
 type Obj = Record<string, any>;
@@ -93,10 +110,7 @@ function Field({
   const id = `onboard-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${generatedId}`;
   return (
     <label className="fm-field" htmlFor={id}>
-      <span>
-        {label}
-        {required && <i>Required</i>}
-      </span>
+      <span>{label}</span>
       {options ? (
         <select
           id={id}
@@ -126,7 +140,6 @@ function Field({
           value={value ?? ""}
           readOnly={readOnly}
           placeholder={placeholder}
-          required={required}
           onChange={(e) => onChange(e.target.value)}
         />
       )}
@@ -324,6 +337,9 @@ export default function FpcAdminOnboardingWizard({
   setState,
   setToast,
   onExit,
+  onSubmitted,
+  initialSessionData,
+  onboardingOnly,
 }: FpcAdminOnboardingWizardProps) {
   const [tokenLoading, setTokenLoading] = useState(true);
   const [tokenError, setTokenError] = useState<{ title: string; message: string; isUsed?: boolean } | null>(null);
@@ -344,11 +360,105 @@ export default function FpcAdminOnboardingWizard({
 
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Auto-prefill if initialSessionData is provided
+  useEffect(() => {
+    if (initialSessionData) {
+      setDraft((prev: typeof initialDraftState) => ({
+        ...prev,
+        basic: {
+          ...prev.basic,
+          legalName: initialSessionData.companyName || prev.basic.legalName,
+          contactEmail: initialSessionData.adminEmail || prev.basic.contactEmail,
+          mobile: initialSessionData.adminMobile || prev.basic.mobile,
+        },
+        admin: {
+          ...prev.admin,
+          name: initialSessionData.adminName || prev.admin.name,
+          email: initialSessionData.adminEmail || prev.admin.email,
+          mobile: initialSessionData.adminMobile || prev.admin.mobile,
+        },
+        location: {
+          ...prev.location,
+          district: initialSessionData.district || prev.location.district,
+          state: initialSessionData.state || prev.location.state,
+          email: initialSessionData.adminEmail || prev.location.email,
+          mobile: initialSessionData.adminMobile || prev.location.mobile,
+        },
+      }));
+    }
+  }, [initialSessionData]);
+
   // Validate token on mount
   useEffect(() => {
     let isMounted = true;
 
     async function verify() {
+      // If a token is provided, always query the backend verification endpoint first
+      if (token) {
+        try {
+          const res = await fetch(`/api/onboarding/verify-token?token=${encodeURIComponent(token)}`);
+          const data = await res.json().catch(() => ({}));
+
+          if (!isMounted) return;
+
+          if (res.status === 409 || data.alreadyUsed) {
+            setTokenError({
+              title: "Invitation Link Already Used",
+              message: "This registration link has already been used to complete an FPC company submission. Each invitation link is single-use and cannot be reused.",
+              isUsed: true,
+            });
+            setTokenLoading(false);
+            return;
+          }
+
+          if (res.status === 410 || data.expired) {
+            setTokenError({
+              title: "Invitation Link Expired",
+              message: data.message || "This invitation link has expired. Please contact your TSF Central Admin to request a new link.",
+            });
+            setTokenLoading(false);
+            return;
+          }
+
+          if (res.ok && data.valid && data.invitation) {
+            const invData = data.invitation;
+            setInvitation(invData);
+            prefillInvitation(invData);
+            setTokenLoading(false);
+            return;
+          }
+        } catch {
+          // If network fetch fails, continue to check local store / demo fallback
+        }
+      }
+
+      if (isDemoMode()) {
+        const pool = (state.records.fpcInvitations || []) as unknown as FpcInvitation[];
+        const matched = (token ? pool.find((i) => i.token === token) : null) || pool[0];
+        const demoFallback: FpcInvitation = matched || {
+          id: "INV-DEMO-001",
+          fpcName: initialSessionData?.companyName || "Kalinganagar Farmer Producer Company Ltd.",
+          adminName: initialSessionData?.adminName || "Subhashree Jena",
+          adminEmail: initialSessionData?.adminEmail || "admin@kalinganagarfpc.in",
+          adminMobile: initialSessionData?.adminMobile || "9437890123",
+          clusterDistrict: initialSessionData ? `${initialSessionData.district}, ${initialSessionData.state}` : "Jajpur Cluster",
+          token: token || "demo-onboarding-token",
+          status: "Invitation Sent",
+          invitedBy: "TSF Central Admin",
+          invitedAt: new Date().toISOString(),
+          dispatchedAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          resendCount: 0,
+          createdBy: "TSF Central Admin",
+        };
+        if (isMounted) {
+          setInvitation(demoFallback);
+          prefillInvitation(demoFallback);
+          setTokenLoading(false);
+        }
+        return;
+      }
+
       if (!token) {
         if (isMounted) {
           setTokenError({
@@ -463,12 +573,31 @@ export default function FpcAdminOnboardingWizard({
   const prefillInvitation = (inv: FpcInvitation) => {
     setDraft((prev: typeof initialDraftState) => {
       const updated = JSON.parse(JSON.stringify(prev));
+      // Pre-fill legal name if provided
+      if (inv.fpcName) {
+        updated.basic.legalName = inv.fpcName;
+      }
       // Pre-fill nominated admin details and contact details
-      updated.admin.name = inv.adminName;
-      updated.admin.email = inv.adminEmail;
-      updated.admin.mobile = inv.adminMobile;
-      updated.basic.contactEmail = inv.adminEmail;
-      updated.basic.mobile = inv.adminMobile;
+      if (inv.adminName) {
+        updated.admin.name = inv.adminName;
+        if (updated.directors[0]) {
+          updated.directors[0].name = inv.adminName;
+        }
+      }
+      if (inv.adminEmail) {
+        updated.admin.email = inv.adminEmail;
+        updated.basic.contactEmail = inv.adminEmail;
+        if (updated.directors[0]) {
+          updated.directors[0].email = inv.adminEmail;
+        }
+      }
+      if (inv.adminMobile) {
+        updated.admin.mobile = inv.adminMobile;
+        updated.basic.mobile = inv.adminMobile;
+        if (updated.directors[0]) {
+          updated.directors[0].mobile = inv.adminMobile;
+        }
+      }
 
       // Pre-fill cluster / district reference if provided
       const clusterRef = inv.clusterDistrict || inv.notes || "";
@@ -571,80 +700,14 @@ export default function FpcAdminOnboardingWizard({
     reader.readAsDataURL(file);
   };
 
-  // Field validation identical to FpcManagement.tsx
-  const validateStep = (index: number): boolean => {
-    const errors: string[] = [];
-    const b = draft.basic;
-    const c = draft.capital;
-    const loc = draft.location;
-    const act = draft.activities;
-    const dirs = draft.directors || [];
-
-    // Step 0: Basic company details
-    if (index === 0) {
-      if (!b.legalName?.trim()) errors.push("FPC legal company name is required.");
-      if (!/^[A-Z]\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}$/.test((b.cin || "").trim())) {
-        errors.push("A valid 21-character Corporate Identification Number (CIN) is required (e.g. U01100OD2021PTC035612).");
-      }
-      if (!b.incorporationDate) errors.push("Date of incorporation is required.");
-    }
-
-    // Step 1: Legal & registration
-    if (index === 1) {
-      if (!/^[A-Z]{5}\d{4}[A-Z]$/.test((b.pan || "").trim())) errors.push("A valid 10-character Company PAN is required (e.g. ABCDE1234F).");
-      if (!/^[A-Z]{4}\d{5}[A-Z]$/.test((b.tan || "").trim())) errors.push("A valid 10-character Company TAN is required (e.g. ABCD12345E).");
-      if (!/^\d{2}[A-Z]{5}\d{4}[A-Z]\d[Z][A-Z\d]$/.test((b.gstin || "").trim())) errors.push("A valid 15-character GSTIN is required (State code 21 for Odisha, 20 for Jharkhand).");
-    }
-
-    // Step 2: Financial information
-    if (index === 2) {
-      if (Number(c.authorisedCapital || 0) <= 0) errors.push("Authorized share capital must be greater than zero.");
-      if (Number(c.paidUpCapital || 0) <= 0) errors.push("Paid-up share capital must be greater than zero.");
-      if (Number(c.paidUpCapital || 0) > Number(c.authorisedCapital || 0)) errors.push("Paid-up capital cannot exceed authorized capital.");
-      if (!draft.bankAccounts?.length || !draft.bankAccounts[0].accountNumber?.trim()) {
-        errors.push("At least one primary bank account with account number is required.");
-      } else if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test((draft.bankAccounts[0].ifsc || "").trim())) {
-        errors.push("A valid 11-character IFSC code is required for the primary bank account.");
-      }
-    }
-
-    // Step 3: Board of directors
-    if (index === 3) {
-      if (dirs.length < 5) errors.push("Producer Company under Section 378A requires a minimum of 5 directors.");
-      dirs.forEach((d: Obj, i: number) => {
-        if (!d.name?.trim()) errors.push(`Director #${i + 1} full name is required.`);
-        if (!/^\d{8}$/.test(String(d.din || "").trim())) errors.push(`Director #${i + 1} must have an 8-digit Director Identification Number (DIN).`);
-        if (!d.appointmentDate) errors.push(`Director #${i + 1} appointment date is required.`);
-      });
-    }
-
-    // Step 5: Address & location
-    if (index === 5) {
-      if (!loc.address?.trim()) errors.push("Registered office street address is required.");
-      if (!loc.state) errors.push("State selection is required.");
-      if (!loc.district) errors.push("District selection is required.");
-      if (!loc.block) errors.push("Block selection is required.");
-      if (!/^\d{6}$/.test(String(loc.pin || "").trim())) errors.push("A valid 6-digit PIN code is required.");
-    }
-
-    // Step 6: Business activities
-    if (index === 6) {
-      if (!act.primary) errors.push("Primary business activity is required.");
-      if (!act.commodities?.trim()) errors.push("Please list the primary commodities handled.");
-    }
-
-    if (errors.length) {
-      setToast(errors[0]);
-      return false;
-    }
+  // All registration fields across all 8 steps are optional
+  const validateStep = (_index: number): boolean => {
     return true;
   };
 
   const handleNext = () => {
-    if (validateStep(step)) {
-      setStep((n) => Math.min(7, n + 1));
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
+    setStep((n) => Math.min(7, n + 1));
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleSaveDraft = () => {
@@ -652,28 +715,20 @@ export default function FpcAdminOnboardingWizard({
   };
 
   const handleSubmitRegistration = async () => {
-    for (let i = 0; i < 7; i++) {
-      if (!validateStep(i)) {
-        setStep(i);
-        window.scrollTo({ top: 0, behavior: "smooth" });
-        return;
-      }
-    }
-
     setIsSubmitting(true);
     try {
-      const fpcId = `FPC-${(draft.location.state || "ODI").slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`;
+      const fpcId = `FPC-${(draft.location?.state || "ODI").slice(0, 3).toUpperCase()}-${Date.now().toString().slice(-4)}`;
       const nowStr = new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
 
       const fpcRecord: RecordRow = {
         id: fpcId,
         fpcId,
-        name: draft.basic.legalName,
-        location: `${draft.location.district || ""}, ${draft.location.state || ""}`.replace(/^, |, $/g, ""),
+        name: draft.basic?.legalName?.trim() || invitation?.fpcName || "Kalinganagar Farmer Producer Company Ltd.",
+        location: `${draft.location?.district || ""}, ${draft.location?.state || ""}`.replace(/^, |, $/g, "") || "Location Not Specified",
         status: "Submitted",
-        farmers: String(draft.capital.farmerCount || "120"),
-        shareholders: String(draft.capital.shareholderCount || "60"),
-        logo: draft.basic.logo || "",
+        farmers: String(draft.capital?.farmerCount || "120"),
+        shareholders: String(draft.capital?.shareholderCount || "60"),
+        logo: draft.basic?.logo || "",
         details: {
           ...draft,
           statusHistory: [
@@ -741,14 +796,17 @@ export default function FpcAdminOnboardingWizard({
         ],
       }));
 
-      setSubmissionResult({
+      const summaryData = {
         success: true,
         fpcId: fpcRecord.id,
         companyName: fpcRecord.name,
-        adminName: invitation?.adminName || draft.admin.name,
-        adminEmail: invitation?.adminEmail || draft.admin.email,
+        adminName: invitation?.adminName || draft.admin.name || initialSessionData?.adminName || "Nominated Admin",
+        adminEmail: invitation?.adminEmail || draft.admin.email || initialSessionData?.adminEmail || "admin@fpc.org",
         submittedAt: nowStr,
-      });
+      };
+
+      setSubmissionResult(summaryData);
+      onSubmitted?.(summaryData);
 
       setToast("FPC company registration successfully submitted to Tata Steel Foundation!");
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -948,11 +1006,11 @@ export default function FpcAdminOnboardingWizard({
       return (
         <Section title="Basic company details" note="Enter registered legal name, registration number, CIN and incorporation details." number="01">
           <div className="fm-grid two">
-            <Field label="FPC Legal Name" value={b.legalName} required placeholder="e.g. Green Valley Farmer Producer Company Ltd." onChange={(v) => patch("basic", "legalName", v)} />
-            <Field label="Corporate Identification Number (CIN)" value={b.cin} required hint="21 alphanumeric characters" placeholder="e.g. U01100OD2021PTC035612" onChange={(v) => patch("basic", "cin", v.toUpperCase())} />
+            <Field label="FPC Legal Name" value={b.legalName} placeholder="e.g. Green Valley Farmer Producer Company Ltd." onChange={(v) => patch("basic", "legalName", v)} />
+            <Field label="Corporate Identification Number (CIN)" value={b.cin} hint="21 alphanumeric characters" placeholder="e.g. U01100OD2021PTC035612" onChange={(v) => patch("basic", "cin", v.toUpperCase())} />
             <Field label="FPC Registration Number" value={b.registrationNumber} placeholder="e.g. 035612" onChange={(v) => patch("basic", "registrationNumber", v)} />
             <Field label="ROC Office" value={b.rocOffice} options={["ROC Cuttack", "ROC Ranchi", "ROC Kolkata", "ROC Delhi", "ROC Mumbai"]} onChange={(v) => patch("basic", "rocOffice", v)} />
-            <Field label="Date of Incorporation" type="date" value={b.incorporationDate} required onChange={(v) => patch("basic", "incorporationDate", v)} />
+            <Field label="Date of Incorporation" type="date" value={b.incorporationDate} onChange={(v) => patch("basic", "incorporationDate", v)} />
             <Field label="Company Category" value={b.category} options={["Producer Company under Section 378A of CA 2013", "Company Limited by Shares", "Private Limited (Producer)"]} onChange={(v) => patch("basic", "category", v)} />
             <Field label="Official Contact Email" type="email" value={b.contactEmail} readOnly placeholder="e.g. office@fpc.in" onChange={(v) => patch("basic", "contactEmail", v)} />
             <Field label="Official Contact Mobile" value={b.mobile} readOnly placeholder="10-digit mobile" onChange={(v) => patch("basic", "mobile", v)} />
@@ -967,9 +1025,9 @@ export default function FpcAdminOnboardingWizard({
       return (
         <Section title="Legal and registration details" note="Tax registrations (PAN, TAN, GSTIN) and operating licenses." number="02">
           <div className="fm-grid two">
-            <Field label="Company PAN" value={b.pan} required hint="10 characters (e.g. AAACG1234F)" onChange={(v) => patch("basic", "pan", v.toUpperCase())} />
-            <Field label="Company TAN" value={b.tan} required hint="10 characters (e.g. BBNG01234A)" onChange={(v) => patch("basic", "tan", v.toUpperCase())} />
-            <Field label="GSTIN" value={b.gstin} required hint="15 characters (State code 21 for Odisha, 20 for Jharkhand)" onChange={(v) => patch("basic", "gstin", v.toUpperCase())} />
+            <Field label="Company PAN" value={b.pan} hint="10 characters (e.g. AAACG1234F)" onChange={(v) => patch("basic", "pan", v.toUpperCase())} />
+            <Field label="Company TAN" value={b.tan} hint="10 characters (e.g. BBNG01234A)" onChange={(v) => patch("basic", "tan", v.toUpperCase())} />
+            <Field label="GSTIN" value={b.gstin} hint="15 characters (State code 21 for Odisha, 20 for Jharkhand)" onChange={(v) => patch("basic", "gstin", v.toUpperCase())} />
             <Field label="FSSAI License Number" value={b.fssaiLicense} placeholder="14-digit FSSAI Number" onChange={(v) => patch("basic", "fssaiLicense", v)} />
             <Field label="Seed License Number" value={b.seedLicense} placeholder="e.g. SL/KEO/2024/118" onChange={(v) => patch("basic", "seedLicense", v)} />
             <Field label="Fertilizer License Number" value={b.fertilizerLicense} placeholder="e.g. FL/KEO/2023/041" onChange={(v) => patch("basic", "fertilizerLicense", v)} />
@@ -1006,8 +1064,8 @@ export default function FpcAdminOnboardingWizard({
         <>
           <Section title="Capital structure and annual turnovers" note="Authorized share capital, paid-up capital, and historical turnover." number="03">
             <div className="fm-grid three">
-              <Field label="Authorized Capital (₹)" type="number" value={c.authorisedCapital} required placeholder="e.g. 1000000" onChange={(v) => patch("capital", "authorisedCapital", v)} />
-              <Field label="Paid-up Capital (₹)" type="number" value={c.paidUpCapital} required placeholder="e.g. 600000" onChange={(v) => patch("capital", "paidUpCapital", v)} />
+              <Field label="Authorized Capital (₹)" type="number" value={c.authorisedCapital} placeholder="e.g. 1000000" onChange={(v) => patch("capital", "authorisedCapital", v)} />
+              <Field label="Paid-up Capital (₹)" type="number" value={c.paidUpCapital} placeholder="e.g. 600000" onChange={(v) => patch("capital", "paidUpCapital", v)} />
               <Field
                 label="Face Value per Share (₹)"
                 type="number"
@@ -1018,7 +1076,7 @@ export default function FpcAdminOnboardingWizard({
                   patch("capital", "shares", String(shares));
                 }}
               />
-              <Field label="Annual Turnover (₹)" type="number" value={c.annualTurnover} required placeholder="e.g. 7180000" onChange={(v) => patch("capital", "annualTurnover", v)} />
+              <Field label="Annual Turnover (₹)" type="number" value={c.annualTurnover} placeholder="e.g. 7180000" onChange={(v) => patch("capital", "annualTurnover", v)} />
               <Field label="Financial Year" value={c.financialYear || "2025–26"} options={["2025–26", "2024–25", "2023–24"]} onChange={(v) => patch("capital", "financialYear", v)} />
               <Field label="Number of Farmers" type="number" value={c.farmerCount} placeholder="e.g. 100" onChange={(v) => patch("capital", "farmerCount", v)} />
               <Field label="Number of Shareholders" type="number" value={c.shareholderCount} placeholder="e.g. 60" onChange={(v) => patch("capital", "shareholderCount", v)} />
@@ -1044,9 +1102,9 @@ export default function FpcAdminOnboardingWizard({
                   )}
                 </div>
                 <div className="fm-grid three">
-                  <Field label="Bank Name" value={bAcc.bank} required placeholder="e.g. State Bank of India" onChange={(v) => setArrayField("bankAccounts", i, "bank", v)} />
-                  <Field label="Account Number" value={bAcc.accountNumber} required placeholder="Account number" onChange={(v) => setArrayField("bankAccounts", i, "accountNumber", v)} />
-                  <Field label="IFSC Code" value={bAcc.ifsc} required placeholder="e.g. SBIN0000123" onChange={(v) => setArrayField("bankAccounts", i, "ifsc", v.toUpperCase())} />
+                  <Field label="Bank Name" value={bAcc.bank} placeholder="e.g. State Bank of India" onChange={(v) => setArrayField("bankAccounts", i, "bank", v)} />
+                  <Field label="Account Number" value={bAcc.accountNumber} placeholder="Account number" onChange={(v) => setArrayField("bankAccounts", i, "accountNumber", v)} />
+                  <Field label="IFSC Code" value={bAcc.ifsc} placeholder="e.g. SBIN0000123" onChange={(v) => setArrayField("bankAccounts", i, "ifsc", v.toUpperCase())} />
                   <Field label="Branch Name" value={bAcc.branch} placeholder="e.g. Keonjhar Main Branch" onChange={(v) => setArrayField("bankAccounts", i, "branch", v)} />
                   <Field label="Account Type" value={bAcc.accountType} options={["Current", "Savings", "Cash Credit"]} onChange={(v) => setArrayField("bankAccounts", i, "accountType", v)} />
                 </div>
@@ -1063,27 +1121,27 @@ export default function FpcAdminOnboardingWizard({
     // STEP 3: Board of Directors
     if (index === 3) {
       return (
-        <Section title="Board of directors (BOD) details" note={`Minimum 5 directors required &bull; Total entered: ${dirs.length}`} number="04">
+        <Section title="Board of directors (BOD) details" note={`Board of directors &bull; Total entered: ${dirs.length}`} number="04">
           <div className="fm-director-list">
             {dirs.map((d: Obj, i: number) => (
               <div className="fm-row-card" key={i} style={{ borderLeft: "4px solid #176b49" }}>
                 <div className="fm-row-title" style={{ borderBottom: "1px solid #edf2ee", paddingBottom: 8, marginBottom: 12 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div className="fm-director-photo">
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
+                    <div className="fm-director-photo" style={{ flexShrink: 0 }}>
                       {d.photo ? (
                         <img src={d.photo} alt={d.name} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 7 }} />
                       ) : (
                         <User size={22} />
                       )}
                     </div>
-                    <div>
-                      <b style={{ fontSize: 13, color: "#1e3a2b" }}>{d.name || `Director #${i + 1}`}</b>
-                      <span style={{ display: "block", fontSize: 10, color: "#627568" }}>
+                    <div style={{ minWidth: 0, overflowWrap: "anywhere" }}>
+                      <b style={{ fontSize: 13, color: "#1e3a2b", display: "block" }}>{d.name || `Director #${i + 1}`}</b>
+                      <span style={{ display: "block", fontSize: 10, color: "#627568", overflowWrap: "anywhere" }}>
                         {d.designation || "Director"} &bull; DIN: {d.din || "—"} &bull; Status: <strong>{d.status || "Active"}</strong>
                       </span>
                     </div>
                   </div>
-                  {dirs.length > 5 && (
+                  {dirs.length > 1 && (
                     <button type="button" className="fm-icon-button" style={{ color: "#b91c1c" }} onClick={() => removeRow("directors", i)} title="Remove Director">
                       <Trash2 size={15} />
                     </button>
@@ -1091,12 +1149,12 @@ export default function FpcAdminOnboardingWizard({
                 </div>
 
                 <div className="fm-grid three">
-                  <Field label="Director Full Name" value={d.name} required placeholder="Full Name" onChange={(v) => setArrayField("directors", i, "name", v)} />
-                  <Field label="DIN (8 digits)" value={d.din} required placeholder="e.g. 01234567" onChange={(v) => setArrayField("directors", i, "din", v)} />
+                  <Field label="Director Full Name" value={d.name} placeholder="Full Name" onChange={(v) => setArrayField("directors", i, "name", v)} />
+                  <Field label="DIN (8 digits)" value={d.din} placeholder="e.g. 01234567" onChange={(v) => setArrayField("directors", i, "din", v)} />
                   <Field label="Designation" value={d.designation} options={["Chairperson", "Managing Director", "Director", "CEO", "Nominee Director", "Alternate Director"]} onChange={(v) => setArrayField("directors", i, "designation", v)} />
                   <Field label="Gender" value={d.gender} options={["Female", "Male", "Other"]} onChange={(v) => setArrayField("directors", i, "gender", v)} />
-                  <Field label="Appointment Date" type="date" value={d.appointmentDate} required onChange={(v) => setArrayField("directors", i, "appointmentDate", v)} />
-                  <Field label="Mobile Number" value={d.mobile} required placeholder="10-digit mobile" onChange={(v) => setArrayField("directors", i, "mobile", v)} />
+                  <Field label="Appointment Date" type="date" value={d.appointmentDate} onChange={(v) => setArrayField("directors", i, "appointmentDate", v)} />
+                  <Field label="Mobile Number" value={d.mobile} placeholder="10-digit mobile" onChange={(v) => setArrayField("directors", i, "mobile", v)} />
                   <Field label="Email Address" type="email" value={d.email} placeholder="director@fpc.demo" onChange={(v) => setArrayField("directors", i, "email", v)} />
                   <Field label="Director PAN" value={d.pan} placeholder="e.g. ABCDE1234F" onChange={(v) => setArrayField("directors", i, "pan", v.toUpperCase())} />
                   <Field label="Social Category" value={d.category} options={["General", "OBC", "SC", "ST", "Other"]} onChange={(v) => setArrayField("directors", i, "category", v)} />
@@ -1207,13 +1265,13 @@ export default function FpcAdminOnboardingWizard({
           <h4 style={{ margin: "16px 0 8px 0", fontSize: 13, color: "#1e3b2b" }}>Statutory Document Attachments</h4>
           <div className="fm-doc-grid">
             {[
-              { key: "incorporationCertificate", label: "Certificate of Incorporation", req: true },
-              { key: "panCertificate", label: "Company PAN Certificate", req: true },
+              { key: "incorporationCertificate", label: "Certificate of Incorporation", req: false },
+              { key: "panCertificate", label: "Company PAN Certificate", req: false },
               { key: "gstCertificate", label: "GSTIN Certificate", req: false },
               { key: "fssaiCertificate", label: "FSSAI Food Safety License", req: false },
               { key: "seedLicenseDoc", label: "Seed Production/Distribution License", req: false },
               { key: "fertilizerLicenseDoc", label: "Fertilizer Retail/Wholesale License", req: false },
-              { key: "rocDocuments", label: "ROC MOA & AOA Documents", req: true },
+              { key: "rocDocuments", label: "ROC MOA & AOA Documents", req: false },
               { key: "otherDocuments", label: "Board Resolution / Supporting Documents", req: false },
             ].map((dItem) => {
               const attached = (docs as any)[dItem.key];
@@ -1221,7 +1279,7 @@ export default function FpcAdminOnboardingWizard({
                 <div className="fm-doc-card" key={dItem.key}>
                   <div className="fm-doc-card-head">
                     <span style={{ fontWeight: 700, fontSize: 12, color: "#234030" }}>
-                      {dItem.label} {dItem.req && <i style={{ color: "#b45309", fontStyle: "normal" }}>*</i>}
+                      {dItem.label}
                     </span>
                     <span className={`fm-doc-badge ${attached ? "attached" : "pending"}`}>
                       {attached ? "✓ Attached" : "Pending"}
@@ -1248,11 +1306,10 @@ export default function FpcAdminOnboardingWizard({
       return (
         <Section title="Registered office and operating location" note="Dependent administrative hierarchy: State → District → Block → Gram Panchayat → Village." number="06">
           <div className="fm-grid three">
-            <Field label="Registered Office Street Address" value={loc.address} required placeholder="Village, Landmark, Street" onChange={(v) => patch("location", "address", v)} />
+            <Field label="Registered Office Street Address" value={loc.address} placeholder="Village, Landmark, Street" onChange={(v) => patch("location", "address", v)} />
             <Field
               label="State"
               value={loc.state || "Odisha"}
-              required
               options={["Odisha", "Jharkhand"]}
               onChange={(v) => {
                 patch("location", "state", v);
@@ -1269,7 +1326,6 @@ export default function FpcAdminOnboardingWizard({
             <Field
               label="District"
               value={loc.district || districtOptions[0]}
-              required
               options={districtOptions}
               onChange={(v) => {
                 patch("location", "district", v);
@@ -1284,7 +1340,6 @@ export default function FpcAdminOnboardingWizard({
             <Field
               label="Block"
               value={loc.block || blockOptions[0]}
-              required
               options={blockOptions}
               onChange={(v) => {
                 patch("location", "block", v);
@@ -1297,7 +1352,6 @@ export default function FpcAdminOnboardingWizard({
             <Field
               label="Gram Panchayat"
               value={loc.panchayat || panchayatOptions[0]}
-              required
               options={panchayatOptions}
               onChange={(v) => {
                 patch("location", "panchayat", v);
@@ -1308,11 +1362,10 @@ export default function FpcAdminOnboardingWizard({
             <Field
               label="Village"
               value={loc.village || villageOptions[0]}
-              required
               options={villageOptions}
               onChange={(v) => patch("location", "village", v)}
             />
-            <Field label="PIN Code" value={loc.pin} required placeholder="6-digit PIN code" onChange={(v) => patch("location", "pin", v)} />
+            <Field label="PIN Code" value={loc.pin} placeholder="6-digit PIN code" onChange={(v) => patch("location", "pin", v)} />
             <Field label="Office Mobile Number" value={loc.mobile} placeholder="10-digit phone" onChange={(v) => patch("location", "mobile", v)} />
             <Field label="Official Email Address" value={loc.email} placeholder="office@fpc.demo" onChange={(v) => patch("location", "email", v)} />
             <Field label="Latitude (Optional)" value={loc.latitude} placeholder="e.g. 21.6289" onChange={(v) => patch("location", "latitude", v)} />
@@ -1330,7 +1383,6 @@ export default function FpcAdminOnboardingWizard({
             <Field
               label="Primary Business Activity"
               value={act.primary || "Produce Procurement"}
-              required
               options={activityList}
               onChange={(v) => patch("activities", "primary", v)}
             />
@@ -1349,7 +1401,6 @@ export default function FpcAdminOnboardingWizard({
             <Field
               label="Commodities Handled"
               value={act.commodities}
-              required
               placeholder="e.g. Paddy, Maize, Arhar, Ragi, Mustard"
               onChange={(v) => patch("activities", "commodities", v)}
             />
@@ -1428,41 +1479,14 @@ export default function FpcAdminOnboardingWizard({
   };
 
   return (
-    <main className="fm-root min-h-screen bg-[#f4f7f2] p-4 md:p-8">
-      {/* Top Identity Banner */}
-      {invitation && (
-        <div className="mb-4 bg-emerald-950 text-white rounded-xl p-3.5 px-5 flex flex-col md:flex-row md:items-center md:justify-between gap-2 shadow-md">
-          <div className="flex items-center gap-2.5">
-            <span className="p-1.5 rounded-lg bg-emerald-800 text-emerald-200">
-              <ShieldCheck size={16} />
-            </span>
-            <div className="text-xs">
-              <span className="text-emerald-300 font-extrabold uppercase tracking-wider text-[10px] block">
-                Authenticated Invitation &bull; Single-Use Registration Session
-              </span>
-              <span>
-                Invited Administrator: <strong>{invitation.adminName}</strong> ({invitation.adminEmail} &bull; +91 {invitation.adminMobile})
-                {(invitation.clusterDistrict || invitation.notes) && (
-                  <span className="text-emerald-200 ml-1">
-                    &bull; Cluster / District: <strong>{invitation.clusterDistrict || invitation.notes}</strong>
-                  </span>
-                )}
-              </span>
-            </div>
-          </div>
-          <span className="text-[11px] bg-emerald-800/80 px-2.5 py-1 rounded text-emerald-200 font-mono">
-            {invitation.id}
-          </span>
-        </div>
-      )}
-
+    <main className="fm-root w-full max-w-full min-h-screen bg-[#f4f7f2] pt-3 md:pt-4 px-3 sm:px-4 md:px-8 pb-10 box-border">
       {/* Main Header */}
       <header className="fm-header">
         <div>
           <button type="button" className="fm-back" onClick={onExit || (() => (window.location.href = "/"))}>
-            <ArrowLeft size={15} /> Exit Portal
+            <ArrowLeft size={15} /> {onboardingOnly ? "Back to Login" : "Exit Portal"}
           </button>
-          <span className="fm-eyebrow">Tata Steel Foundation &bull; FPC SELF-REGISTRATION</span>
+          <span className="fm-eyebrow">Tata Steel Foundation &bull; {onboardingOnly ? "STEP 5 OF 6: FPC COMPANY ONBOARDING" : "FPC SELF-REGISTRATION"}</span>
           <h1>Onboard New Producer Company</h1>
           <p>8-Step structured onboarding wizard. Complete company legal, financial, governance, and operational records.</p>
         </div>
@@ -1483,27 +1507,37 @@ export default function FpcAdminOnboardingWizard({
         <div className="fm-progress-line">
           <i style={{ width: `${((step + 1) / 8) * 100}%` }} />
         </div>
-        <div className="fm-stepper">
-          {steps.map((s, i) => (
-            <button
-              type="button"
-              className={`${step === i ? "current" : ""} ${step > i ? "complete" : ""}`}
-              key={s}
-              onClick={() => {
-                if (i <= step) setStep(i);
-                else if (validateStep(step)) setStep(i);
-              }}
-            >
-              <span>{step > i ? <Check size={13} /> : `0${i + 1}`}</span>
-              <small>{s}</small>
-            </button>
-          ))}
+        <div className="fm-stepper-wrap">
+          <div className="fm-stepper">
+            {steps.map((s, i) => (
+              <button
+                type="button"
+                className={`${step === i ? "current" : ""} ${step > i ? "complete" : ""}`}
+                key={s}
+                onClick={() => {
+                  if (i <= step) setStep(i);
+                  else if (validateStep(step)) setStep(i);
+                }}
+              >
+                <span>{step > i ? <Check size={13} /> : `0${i + 1}`}</span>
+                <small>{s}</small>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Wizard Main Content & Aside Panel */}
       <div className="fm-wizard-body mt-4">
         <div className="fm-wizard-main">
+          {isDemoMode() && (
+            <div className="bg-emerald-50 border border-emerald-300 rounded-xl p-3 mb-4 text-xs text-emerald-900 flex flex-wrap items-center justify-between gap-2">
+              <span className="flex-1 min-w-0">
+                <strong>Client Demo Mode Active:</strong> All 8 registration steps are non-blocking. You can navigate through steps and submit at any point.
+              </span>
+              <span className="text-[10px] bg-emerald-700 text-white font-bold px-2 py-0.5 rounded uppercase tracking-wider shrink-0">Demo Mode</span>
+            </div>
+          )}
           {renderStepContent(step)}
 
           <div className="fm-wizard-footer">
@@ -1512,7 +1546,7 @@ export default function FpcAdminOnboardingWizard({
               className="fm-button secondary"
               onClick={() => (step ? setStep(step - 1) : onExit?.())}
             >
-              {step ? "Previous Step" : "Cancel"}
+              {step ? "Previous Step" : (onboardingOnly ? "Back to Login" : "Back")}
             </button>
             <div>
               <button type="button" className="fm-button ghost" onClick={handleSaveDraft}>
@@ -1533,11 +1567,11 @@ export default function FpcAdminOnboardingWizard({
                   {isSubmitting ? (
                     <>
                       <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Submitting...
+                      Submitting Onboarding...
                     </>
                   ) : (
                     <>
-                      <ShieldCheck size={15} /> Final Submit to TSF
+                      <ShieldCheck size={15} /> Submit Onboarding
                     </>
                   )}
                 </button>
@@ -1583,8 +1617,8 @@ export default function FpcAdminOnboardingWizard({
             <p style={{ fontSize: 11, color: "#617366", margin: "4px 0 10px" }}>
               Single-use registration link. Valid for 7 days from dispatch date.
             </p>
-            <div className="text-[11px] text-slate-600 bg-white p-2.5 rounded border border-slate-200">
-              Need assistance? Email <a href="mailto:onboarding@tatasteelfoundation.org" className="text-emerald-700 underline font-semibold">onboarding@tatasteelfoundation.org</a>
+            <div className="text-[11px] text-slate-600 bg-white p-2.5 rounded border border-slate-200 overflow-wrap-anywhere break-words">
+              Need assistance? Email <a href="mailto:onboarding@tatasteelfoundation.org" className="text-emerald-700 underline font-semibold break-all">onboarding@tatasteelfoundation.org</a>
             </div>
           </div>
         </aside>

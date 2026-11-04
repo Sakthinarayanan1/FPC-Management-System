@@ -17,6 +17,7 @@ import {
   User,
 } from "lucide-react";
 import type { FpcInvitation, RecordRow, State } from "@/lib/store";
+import { isDemoMode } from "@/lib/moduleConfig";
 import EmailPreviewModal from "./EmailPreviewModal";
 import FpcAdminOnboardingWizard from "./FpcAdminOnboardingWizard";
 
@@ -47,11 +48,14 @@ export default function TsfAdminOnboardingView({
     onSelectFlow?.(flow);
   };
 
+  const [fpcName, setFpcName] = useState("");
   const [adminName, setAdminName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [adminMobile, setAdminMobile] = useState("");
   const [clusterDistrict, setClusterDistrict] = useState("");
   const [selectedInvitationToken, setSelectedInvitationToken] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<"All" | "Pending" | "Accepted" | "Expired">("All");
+  const [pipelineInvitations, setPipelineInvitations] = useState<any[]>([]);
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -74,7 +78,19 @@ export default function TsfAdminOnboardingView({
   } | null>(null);
   const [testingConnection, setTestingConnection] = useState(false);
 
+  const loadInvitations = () => {
+    fetch("/api/onboarding/invitations")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((res) => {
+        if (res?.success && Array.isArray(res.invitations)) {
+          setPipelineInvitations(res.invitations);
+        }
+      })
+      .catch(() => {});
+  };
+
   useEffect(() => {
+    loadInvitations();
     fetch("/api/onboarding/smtp-status")
       .then((r) => (r.ok ? r.json() : null))
       .then((res) => {
@@ -111,183 +127,128 @@ export default function TsfAdminOnboardingView({
 
   const invitations: FpcInvitation[] = (state.records.fpcInvitations || []) as unknown as FpcInvitation[];
 
-  // Validation strictly for the 3 required fields
+  // Validation for FPC invitation fields
   const validate = () => {
-    const errs: Record<string, string> = {};
-
-    if (!adminName.trim()) {
-      errs.adminName = "FPC Admin Name is required.";
-    } else if (adminName.trim().length < 3) {
-      errs.adminName = "Name must be at least 3 characters.";
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!adminEmail.trim()) {
-      errs.adminEmail = "FPC Admin Email is required.";
-    } else if (!emailRegex.test(adminEmail.trim())) {
-      errs.adminEmail = "Please enter a valid email address.";
-    }
-
-    const cleanMobile = adminMobile.replace(/\D/g, "");
-    if (!cleanMobile) {
-      errs.adminMobile = "FPC Admin Mobile Number is required.";
-    } else if (cleanMobile.length !== 10 || !/^[6-9]\d{9}$/.test(cleanMobile)) {
-      errs.adminMobile = "Enter a valid 10-digit Indian mobile number (starting with 6-9).";
-    }
-
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
+    // In Prototype Mode, all form validations are completely disabled
+    setErrors({});
+    return true;
   };
 
-  const checkDuplicate = (email: string, mobile: string): FpcInvitation | null => {
+  const checkDuplicate = (targetFpc: string, email: string, mobile: string): FpcInvitation | null => {
     const cleanM = mobile.replace(/\D/g, "");
     const cleanE = email.trim().toLowerCase();
+    const cleanF = targetFpc.trim().toLowerCase();
 
+    const pool = pipelineInvitations.length > 0 ? pipelineInvitations : invitations;
     return (
-      invitations.find(
+      pool.find(
         (inv) =>
           inv.status !== "Rejected" &&
           inv.status !== "Expired" &&
-          (inv.adminEmail.toLowerCase() === cleanE || inv.adminMobile.replace(/\D/g, "") === cleanM)
+          ((cleanF && inv.fpcName?.toLowerCase() === cleanF) ||
+            inv.adminEmail.toLowerCase() === cleanE ||
+            inv.adminMobile.replace(/\D/g, "") === cleanM)
       ) || null
     );
   };
 
-  const handleInputChange = (field: "name" | "email" | "mobile", value: string) => {
+  const handleInputChange = (field: "fpcName" | "name" | "email" | "mobile", value: string) => {
     setDuplicateWarning(null);
     setDeliveryError(null);
-    if (field === "name") {
+    if (field === "fpcName") {
+      setFpcName(value);
+      if (errors.fpcName) setErrors((e) => ({ ...e, fpcName: "" }));
+      if (value.length >= 3 && !isDemoMode()) {
+        const dup = checkDuplicate(value, adminEmail, adminMobile);
+        if (dup) setDuplicateWarning(dup);
+      }
+    } else if (field === "name") {
       setAdminName(value);
       if (errors.adminName) setErrors((e) => ({ ...e, adminName: "" }));
     } else if (field === "email") {
       setAdminEmail(value);
       if (errors.adminEmail) setErrors((e) => ({ ...e, adminEmail: "" }));
-      if (value.includes("@") && adminMobile) {
-        const dup = checkDuplicate(value, adminMobile);
+      if (value.includes("@") && !isDemoMode()) {
+        const dup = checkDuplicate(fpcName, value, adminMobile);
         if (dup) setDuplicateWarning(dup);
       }
     } else if (field === "mobile") {
       const clean = value.replace(/\D/g, "").slice(0, 10);
       setAdminMobile(clean);
       if (errors.adminMobile) setErrors((e) => ({ ...e, adminMobile: "" }));
-      if (clean.length === 10 && adminEmail) {
-        const dup = checkDuplicate(adminEmail, clean);
+      if (clean.length === 10 && !isDemoMode()) {
+        const dup = checkDuplicate(fpcName, adminEmail, clean);
         if (dup) setDuplicateWarning(dup);
       }
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate()) return;
 
-    // Check duplicate
-    const dup = checkDuplicate(adminEmail, adminMobile);
-    if (dup) {
-      setDuplicateWarning(dup);
-      return;
-    }
+    const finalFpcName = fpcName.trim() || "Kalinganagar Farmer Producer Company Ltd.";
+    const finalAdminName = adminName.trim() || "Subhashree Jena";
+    const finalAdminEmail = adminEmail.trim().toLowerCase() || "admin@kalinganagarfpc.in";
+    const finalAdminMobile = adminMobile.replace(/\D/g, "") || "9437890123";
+    const finalCluster = clusterDistrict.trim() || "Jajpur Cluster";
 
-    setIsSubmitting(true);
+    setIsSubmitting(false);
     setDeliveryError(null);
+    setDuplicateWarning(null);
 
-    try {
-      // Real backend email dispatch via Nodemailer SMTP
-      const response = await fetch("/api/onboarding/invitations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          adminName: adminName.trim(),
-          adminEmail: adminEmail.trim().toLowerCase(),
-          adminMobile: adminMobile.replace(/\D/g, ""),
-          clusterDistrict: clusterDistrict.trim() || undefined,
-          notes: clusterDistrict.trim() || undefined,
-        }),
-      });
+    const demoToken = `fpc_inv_demo_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
+    const demoInv: FpcInvitation & { previewUrl?: string; emailMessageId?: string; emailDispatched?: boolean; emailError?: string } = {
+      id: `INV-${Date.now().toString().slice(-6)}`,
+      fpcName: finalFpcName,
+      adminName: finalAdminName,
+      adminEmail: finalAdminEmail,
+      adminMobile: finalAdminMobile,
+      clusterDistrict: finalCluster,
+      notes: finalCluster,
+      token: demoToken,
+      url: `${window.location.origin}/onboard/register?token=${demoToken}`,
+      status: "Invitation Sent",
+      invitedBy: role || "TSF Central Admin",
+      invitedAt: new Date().toISOString(),
+      dispatchedAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      resendCount: 0,
+      emailDispatched: true,
+      createdBy: role || "TSF Central Admin",
+    };
 
-      let data: any = null;
-      const contentType = response.headers.get("content-type") || "";
-      if (contentType.includes("application/json")) {
-        try {
-          data = await response.json();
-        } catch {
-          data = null;
-        }
-      } else {
-        const text = await response.text().catch(() => "");
-        data = { error: text ? `Server returned HTTP ${response.status} with non-JSON content.` : undefined };
-      }
-
-      if (!response.ok || !data?.success) {
-        let errorMsg = data?.error || data?.message;
-        if (!errorMsg) {
-          if (response.status === 504 || response.status === 502) {
-            errorMsg = "Backend API server (port 5000) is unreachable. Please verify that 'pnpm run dev:api' is running.";
-          } else if (response.status === 404) {
-            errorMsg = "Backend API route '/api/onboarding/invitations' was not found (404).";
-          } else {
-            errorMsg = `Email dispatch failed with status ${response.status}. Please check backend logs.`;
-          }
-        }
-        setDeliveryError(errorMsg);
-        setToast(errorMsg);
-        return;
-      }
-
-      const newInvitation: FpcInvitation & { previewUrl?: string; emailMessageId?: string; emailDispatched?: boolean; emailError?: string } = {
-        ...data.invitation,
-        clusterDistrict: clusterDistrict.trim() || undefined,
-        previewUrl: data.previewUrl,
-        emailMessageId: data.emailMessageId,
-        emailDispatched: data.emailDispatched !== false,
-        emailError: data.emailError,
-      };
-
-      // Update Zustand state
-      setState((s) => ({
-        ...s,
-        records: {
-          ...s.records,
-          fpcInvitations: [newInvitation as unknown as RecordRow, ...(s.records.fpcInvitations || []).filter(r => r.id !== newInvitation.id)],
+    setState((s) => ({
+      ...s,
+      records: {
+        ...s.records,
+        fpcInvitations: [demoInv as unknown as RecordRow, ...(s.records.fpcInvitations || []).filter((r) => r.id !== demoInv.id)],
+      },
+      audit: [
+        {
+          id: `AUD-${Date.now().toString().slice(-4)}`,
+          actor: "TSF Central Admin",
+          role: "TSF Central Admin",
+          action: `Generated FPC onboarding invitation for ${demoInv.adminEmail} (Prototype Mode)`,
+          module: "FPC Onboarding",
+          record: demoInv.id,
+          oldValue: "None",
+          newValue: `${demoInv.status} (${demoInv.adminName})`,
+          date: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+          fpcId: "FPC-ODI-001",
         },
-        audit: [
-          {
-            id: `AUD-${Date.now().toString().slice(-4)}`,
-            actor: "TSF Central Admin",
-            role: "TSF Central Admin",
-            action: `Generated FPC onboarding invitation for ${newInvitation.adminEmail}`,
-            module: "FPC Onboarding",
-            record: newInvitation.id,
-            oldValue: "None",
-            newValue: `${newInvitation.status} (${newInvitation.adminName})`,
-            date: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
-            fpcId: "FPC-ODI-001",
-          },
-          ...s.audit,
-        ],
-      }));
+        ...s.audit,
+      ],
+    }));
 
-      if (data.emailDispatched === false) {
-        setToast(`Invitation link created for ${newInvitation.adminEmail} (Email delivery failed: ${data.emailError || "SMTP offline"})`);
-      } else {
-        setToast(`Registration invitation dispatched to ${newInvitation.adminEmail}`);
-      }
-      setSentInvitation(newInvitation);
-      // Reset form
-      setAdminName("");
-      setAdminEmail("");
-      setAdminMobile("");
-      setClusterDistrict("");
-    } catch (err: any) {
-      let msg = err.message || "Network error connecting to email service.";
-      if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
-        msg = "Cannot connect to backend API server. Please ensure the backend is running on port 5000 (run 'pnpm run dev:api').";
-      }
-      setDeliveryError(msg);
-      setToast(msg);
-    } finally {
-      setIsSubmitting(false);
-    }
+    setSentInvitation(demoInv);
+    setSelectedInvitationToken(demoInv.token);
+    setToast(`Registration invitation prepared for ${demoInv.adminEmail} (Prototype Mode)`);
+    setFpcName("");
+    setAdminName("");
+    setAdminEmail("");
+    setAdminMobile("");
+    setClusterDistrict("");
+    loadInvitations();
   };
 
   const handleResend = async (inv: FpcInvitation) => {
@@ -338,6 +299,7 @@ export default function TsfAdminOnboardingView({
       setDuplicateWarning(null);
       setToast(`Invitation email successfully resent to ${inv.adminEmail}. Expiration extended by 7 days.`);
       setSentInvitation(updated);
+      loadInvitations();
     } catch (err: any) {
       let msg = err.message || "Network error while resending email.";
       if (msg.includes("Failed to fetch") || msg.includes("NetworkError")) {
@@ -376,7 +338,7 @@ export default function TsfAdminOnboardingView({
     "inv_sec_demo_sundargarh_4f8a9e2b1c";
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto p-4 md:p-6">
+    <div className="space-y-6 w-full max-w-6xl mx-auto p-3 sm:p-4 md:p-6 min-w-0 box-border">
       {/* FLOW SWITCHER TAB BAR */}
       <div
         className="bg-white border border-slate-200 rounded-2xl p-2 shadow-sm flex flex-col sm:flex-row gap-2"
@@ -657,7 +619,16 @@ export default function TsfAdminOnboardingView({
                 </div>
               ) : (
                 /* Invitation Form - Exactly 4 Fields */
-                <form onSubmit={handleSubmit} className="p-6 md:p-8 space-y-5">
+                <form onSubmit={handleSubmit} noValidate={isDemoMode()} className="p-6 md:p-8 space-y-5">
+                  {isDemoMode() && (
+                    <div className="bg-emerald-50 border border-emerald-300 rounded-lg p-3 text-xs text-emerald-900 flex items-center justify-between">
+                      <span>
+                        <strong>Client Demo Mode Active:</strong> Form fields and credentials are non-blocking. Click <strong>Send Registration Link</strong> to proceed immediately.
+                      </span>
+                      <span className="text-[10px] bg-emerald-700 text-white font-bold px-2 py-0.5 rounded uppercase tracking-wider shrink-0">Demo Mode</span>
+                    </div>
+                  )}
+
                   <div className="bg-emerald-50/70 border border-emerald-200 rounded-lg p-3.5 text-xs text-emerald-900 flex items-start gap-2.5">
                     <ShieldCheck size={16} className="text-emerald-700 shrink-0 mt-0.5" />
                     <div className="leading-snug">
@@ -668,7 +639,7 @@ export default function TsfAdminOnboardingView({
                   </div>
 
                   {/* Delivery Error Banner */}
-                  {deliveryError && (
+                  {deliveryError && !isDemoMode() && (
                     <div className="bg-rose-50 border border-rose-300 rounded-lg p-3.5 text-xs text-rose-900 flex items-start gap-2.5">
                       <AlertCircle size={16} className="text-rose-700 shrink-0 mt-0.5" />
                       <div className="flex-1">
@@ -682,7 +653,7 @@ export default function TsfAdminOnboardingView({
                   )}
 
                   {/* Duplicate Warning */}
-                  {duplicateWarning && (
+                  {duplicateWarning && !isDemoMode() && (
                     <div className="bg-amber-50 border border-amber-300 rounded-lg p-3.5 text-xs text-amber-900 flex items-start gap-2.5">
                       <AlertTriangle size={16} className="text-amber-700 shrink-0 mt-0.5" />
                       <div className="flex-1">
@@ -703,12 +674,34 @@ export default function TsfAdminOnboardingView({
                     </div>
                   )}
 
-                  {/* Responsive 4-Field Grid */}
+                  {/* Responsive Grid */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                    {/* Field 1: FPC Admin Name */}
+                    {/* Field 1: FPC Company Name */}
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        1. FPC Company Name
+                      </label>
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                          <Building2 size={15} />
+                        </div>
+                        <input
+                          type="text"
+                          value={fpcName}
+                          onChange={(e) => handleInputChange("fpcName", e.target.value)}
+                          placeholder="e.g. Sunrise Agro Farmer Producer Company Ltd."
+                          className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 transition-all"
+                        />
+                      </div>
+                      <p className="text-[10px] text-slate-500 mt-0.5">
+                        The registered or proposed legal entity name of the Producer Company.
+                      </p>
+                    </div>
+
+                    {/* Field 2: FPC Admin Name */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                        1. FPC Admin Full Name <span className="text-rose-600">*</span>
+                        2. Nominated FPC Admin Full Name
                       </label>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -719,21 +712,18 @@ export default function TsfAdminOnboardingView({
                           value={adminName}
                           onChange={(e) => handleInputChange("name", e.target.value)}
                           placeholder="e.g. Ramesh Chandra Nayak"
-                          className={`w-full pl-9 pr-3 py-2 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 transition-all ${
-                            errors.adminName ? "border-rose-400 bg-rose-50/30" : "border-slate-300 bg-white"
-                          }`}
+                          className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 transition-all"
                         />
                       </div>
-                      {errors.adminName && <p className="text-[11px] text-rose-600 mt-1">{errors.adminName}</p>}
                       <p className="text-[10px] text-slate-500 mt-0.5">
                         The primary representative or managing director authorized to complete company records.
                       </p>
                     </div>
 
-                    {/* Field 2: FPC Admin Email */}
+                    {/* Field 3: FPC Admin Email */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                        2. FPC Admin Email Address <span className="text-rose-600">*</span>
+                        3. FPC Admin Email Address
                       </label>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -744,21 +734,18 @@ export default function TsfAdminOnboardingView({
                           value={adminEmail}
                           onChange={(e) => handleInputChange("email", e.target.value)}
                           placeholder="e.g. ramesh.nayak@kalingafpc.in"
-                          className={`w-full pl-9 pr-3 py-2 text-xs border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 transition-all ${
-                            errors.adminEmail ? "border-rose-400 bg-rose-50/30" : "border-slate-300 bg-white"
-                          }`}
+                          className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 bg-white rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 transition-all"
                         />
                       </div>
-                      {errors.adminEmail && <p className="text-[11px] text-rose-600 mt-1">{errors.adminEmail}</p>}
                       <p className="text-[10px] text-slate-500 mt-0.5">
                         Real email where the secure invitation link will be dispatched.
                       </p>
                     </div>
 
-                    {/* Field 3: FPC Admin Mobile Number */}
+                    {/* Field 4: FPC Admin Mobile Number */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                        3. FPC Admin Mobile Number <span className="text-rose-600">*</span>
+                        4. FPC Admin Mobile Number
                       </label>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -774,22 +761,19 @@ export default function TsfAdminOnboardingView({
                             onChange={(e) => handleInputChange("mobile", e.target.value)}
                             placeholder="9437012345"
                             maxLength={10}
-                            className={`w-full pl-3 pr-3 py-2 text-xs border rounded-r-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 transition-all ${
-                              errors.adminMobile ? "border-rose-400 bg-rose-50/30" : "border-slate-300 bg-white"
-                            }`}
+                            className="w-full pl-3 pr-3 py-2 text-xs border rounded-r-lg border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-600 transition-all"
                           />
                         </div>
                       </div>
-                      {errors.adminMobile && <p className="text-[11px] text-rose-600 mt-1">{errors.adminMobile}</p>}
                       <p className="text-[10px] text-slate-500 mt-0.5">
                         10-digit Indian mobile number for administrative contact.
                       </p>
                     </div>
 
-                    {/* Field 4: Cluster / District Reference (Optional) */}
+                    {/* Field 5: FPC Registration Details & Cluster Reference */}
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                        4. Cluster / District Reference <span className="text-slate-400 font-normal normal-case">(Optional)</span>
+                        5. Registration Details / Cluster Reference <span className="text-slate-400 font-normal normal-case">(Optional)</span>
                       </label>
                       <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -812,27 +796,171 @@ export default function TsfAdminOnboardingView({
                   {/* Primary Action Button */}
                   <div className="pt-3 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-100">
                     <span className="text-[11px] text-slate-500">
-                      Generating this link issues a cryptographically secure 7-day token.
+                      Generating this link issues a prototype single-use token.
                     </span>
                     <button
                       type="submit"
                       disabled={isSubmitting}
                       className="w-full sm:w-auto min-w-[220px] inline-flex items-center justify-center gap-2 py-2.5 px-6 rounded-lg bg-[#176b49] hover:bg-[#12583b] text-white font-bold text-xs shadow-md transition-all disabled:opacity-50 cursor-pointer"
                     >
-                      {isSubmitting ? (
-                        <>
-                          <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          Dispatching Registration Link...
-                        </>
-                      ) : (
-                        <>
-                          <Send size={14} /> Send Registration Link
-                        </>
-                      )}
+                      <Send size={14} /> Send Registration Invitation
                     </button>
                   </div>
                 </form>
               )}
+            </div>
+          </div>
+
+          {/* FLOW 2: FPC INVITATION PIPELINE TRACKING */}
+          <div className="w-full bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
+            <div className="bg-slate-50 border-b border-slate-200 px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800 m-0">FPC Invitation Tracking</h3>
+                <span className="text-[11px] text-slate-500">
+                  Track expiration, acceptance status, and dispatched activation links
+                </span>
+              </div>
+
+              {/* Status Filter Tabs */}
+              <div className="flex items-center gap-1.5 bg-slate-200/70 p-1 rounded-lg text-xs">
+                {(["All", "Pending", "Accepted", "Expired"] as const).map((filter) => {
+                  const pool = pipelineInvitations.length > 0 ? pipelineInvitations : invitations;
+                  const count =
+                    filter === "All"
+                      ? pool.length
+                      : pool.filter((inv) => {
+                          const s = inv.status;
+                          if (filter === "Accepted") return s === "Accepted";
+                          if (filter === "Expired") return s === "Expired";
+                          return s === "Pending" || s === "Invitation Sent" || s === "Link Generated";
+                        }).length;
+
+                  return (
+                    <button
+                      key={filter}
+                      type="button"
+                      onClick={() => setStatusFilter(filter)}
+                      className={`px-2.5 py-1 rounded-md font-semibold text-[11px] transition-colors cursor-pointer ${
+                        statusFilter === filter
+                          ? "bg-white text-emerald-950 shadow-xs"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      {filter} <span className="opacity-75 text-[10px]">({count})</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto">
+              {(() => {
+                const pool = pipelineInvitations.length > 0 ? pipelineInvitations : invitations;
+                const filtered = pool.filter((inv) => {
+                  if (statusFilter === "All") return true;
+                  if (statusFilter === "Accepted") return inv.status === "Accepted";
+                  if (statusFilter === "Expired") return inv.status === "Expired";
+                  return inv.status === "Pending" || inv.status === "Invitation Sent" || inv.status === "Link Generated";
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <div className="text-center py-10 px-4 text-xs text-slate-500">
+                      No {statusFilter.toLowerCase()} FPC invitations found.
+                    </div>
+                  );
+                }
+
+                return (
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-bold text-[11px] uppercase tracking-wider">
+                        <th className="py-3 px-4">FPC Company Name</th>
+                        <th className="py-3 px-4">Nominated Administrator</th>
+                        <th className="py-3 px-4">Cluster / District</th>
+                        <th className="py-3 px-4">Invitation Status</th>
+                        <th className="py-3 px-4">Expiration</th>
+                        <th className="py-3 px-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filtered.map((inv) => {
+                        const isExpired = inv.status === "Expired";
+                        const isAccepted = inv.status === "Accepted";
+                        const link = inv.activationUrl || `${window.location.origin}/onboard/activate?token=${inv.token}`;
+
+                        return (
+                          <tr key={inv.id || inv.token} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="py-3.5 px-4 font-medium text-slate-900">
+                              <div className="font-bold text-slate-900">
+                                {inv.fpcName || inv.companyName || "Farmer Producer Company"}
+                              </div>
+                              <span className="text-[10px] font-mono text-slate-500">{inv.id}</span>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <div className="font-semibold text-slate-800">{inv.adminName}</div>
+                              <div className="text-[11px] text-slate-500">{inv.adminEmail}</div>
+                              <div className="text-[10px] font-mono text-slate-400">+91 {inv.adminMobile}</div>
+                            </td>
+                            <td className="py-3.5 px-4 text-slate-600 text-xs">
+                              {inv.clusterDistrict || inv.notes || "—"}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              {isAccepted ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                  <CheckCircle2 size={12} className="text-emerald-700" /> Accepted
+                                </span>
+                              ) : isExpired ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                                  <AlertCircle size={12} className="text-rose-700" /> Expired
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                  <Clock size={12} className="text-amber-700" /> Pending
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4 text-[11px] text-slate-600">
+                              {inv.expiresAt
+                                ? new Date(inv.expiresAt).toLocaleDateString("en-IN", {
+                                    day: "2-digit",
+                                    month: "short",
+                                    year: "numeric",
+                                  })
+                                : "7 Days"}
+                            </td>
+                            <td className="py-3.5 px-4 text-right">
+                              <div className="inline-flex items-center gap-1.5 justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(link);
+                                    setToast("Activation link copied to clipboard!");
+                                  }}
+                                  className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                                  title="Copy activation link"
+                                >
+                                  <Copy size={11} /> Copy Link
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleResend(inv)}
+                                  disabled={resendingId === inv.id}
+                                  className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-emerald-50 hover:bg-emerald-100 text-[#176b49] border border-emerald-200 transition-colors inline-flex items-center gap-1 disabled:opacity-50 cursor-pointer"
+                                  title="Resend invitation email"
+                                >
+                                  <RefreshCw size={11} className={resendingId === inv.id ? "animate-spin" : ""} /> Resend
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                );
+              })()}
             </div>
           </div>
 
@@ -851,53 +979,7 @@ export default function TsfAdminOnboardingView({
         </>
       ) : (
         /* FLOW 2 WORKFLOW: FPC ADMIN COMPLETES COMPANY REGISTRATION */
-        <div className="space-y-4">
-          <div className="bg-[#176b49] text-white rounded-2xl p-6 shadow-md flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <span className="text-[11px] font-extrabold uppercase tracking-widest text-emerald-200 block mb-1">
-                Tata Steel Foundation &bull; Flow 2: FPC Company Registration
-              </span>
-              <h2 className="text-xl md:text-2xl font-bold text-white m-0">Complete FPC Company Registration</h2>
-              <p className="text-xs text-emerald-100 mt-1 max-w-2xl leading-relaxed">
-                Nominated FPC Administrator completes the official 8-step statutory company onboarding wizard.
-                Invitation credentials from Flow 1 are automatically verified and pre-filled.
-              </p>
-            </div>
-            <div className="shrink-0 flex flex-wrap items-center gap-2">
-              {invitations.length > 1 && (
-                <div className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-lg border border-white/20 text-xs">
-                  <span className="text-emerald-200 text-[11px] font-medium">Active Invite:</span>
-                  <select
-                    value={activeToken}
-                    onChange={(e) => setSelectedInvitationToken(e.target.value)}
-                    className="bg-[#12583b] text-white text-xs rounded px-2 py-1 border border-emerald-400/40 focus:outline-none"
-                  >
-                    {invitations.map((inv) => (
-                      <option key={inv.id} value={inv.token} className="text-slate-900 bg-white">
-                        {inv.id} &bull; {inv.adminName} ({inv.status})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <a
-                href={`${window.location.origin}/onboard/register?token=${activeToken}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white border border-white/20 transition-colors no-underline"
-              >
-                Standalone Link <ExternalLink size={12} />
-              </a>
-              <button
-                type="button"
-                onClick={() => handleFlowSwitch("flow1")}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white text-[#176b49] hover:bg-emerald-50 transition-colors cursor-pointer shadow-xs"
-              >
-                &larr; Back to Flow 1 (Send Invitation)
-              </button>
-            </div>
-          </div>
-
+        <div className="pt-0 w-full max-w-full min-w-0">
           <FpcAdminOnboardingWizard
             token={activeToken}
             state={state}

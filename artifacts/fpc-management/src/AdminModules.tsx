@@ -6,6 +6,7 @@ import FpcManagement from "./FpcManagement";
 import AccessDenied from "./AccessDenied";
 import LedgerTransactionOverview from "./LedgerTransactionOverview";
 import RegistrationSuccessModal, { type RegistrationDetailItem } from "./RegistrationSuccessModal";
+import { isDemoMode } from "@/lib/moduleConfig";
 import "./admin-modules.css";
 
 type Props = {
@@ -283,7 +284,14 @@ function PartyMaster({ state, setState, role, screen, setToast, go }: Props) {
   const parties = rows(state, key).filter(item => item.status !== "Deleted" && `${Object.values(item).join(" ")}`.toLowerCase().includes(query.toLowerCase()));
   const open = (row?: RecordRow) => { setEditing(row || null); setForm(Object.fromEntries(fields.map(([field]) => [field, String(row?.[field] ?? "")]))); setModal(true); };
   const save = () => {
-    if (!form.name?.trim()) { setToast(`${label} name is required.`); return; }
+    if (!form.name?.trim()) {
+      if (isDemoMode()) {
+        form.name = isBuyer ? "Odisha Agro Traders" : "IFFCO Fertilizer Suppliers";
+      } else {
+        setToast(`${label} name is required.`);
+        return;
+      }
+    }
     const finalStatus = form.status || editing?.status || "Active";
     const isEditingMode = Boolean(editing);
     const record: RecordRow = { ...(editing || {}), ...form, id: editing?.id || id(isBuyer ? "BUY-" : "SUP-"), status: state.offline ? "Draft" : finalStatus, ...(state.offline ? { pendingStatus: finalStatus } : {}), fpcId: "FPC-ODI-001", paymentTerms: Number(form.paymentTerms || 0), ...(isBuyer ? { creditLimit: Number(form.creditLimit || 0), openBalance: Number(editing?.openBalance || 0) } : { openBalance: Number(editing?.openBalance || 0) }) };

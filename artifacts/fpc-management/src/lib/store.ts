@@ -314,7 +314,21 @@ export interface SharePurchaseRecord {
 }
 
 export type State = {
-  role: Role | null; memberId: string; language: string; offline: boolean; records: Record<string, RecordRow[]>;
+  role: Role | null;
+  currentUser?: {
+    userId?: string;
+    id?: string;
+    role: string;
+    username?: string;
+    email?: string;
+    name: string;
+    fpcId?: string;
+    fpcName?: string;
+    onboardingCompleted?: boolean;
+    [key: string]: any;
+  } | null;
+  activeFpcId?: string;
+  memberId: string; language: string; offline: boolean; records: Record<string, RecordRow[]>;
   walletBalances: Record<string, number>; walletTransactions: RecordRow[]; rateHistory: RecordRow[];
   inputCatalog: RecordRow[]; inputOrders: RecordRow[]; purchaseOrders?: RecordRow[]; saleRequests: RecordRow[]; certificates: RecordRow[];
   audit: RecordRow[]; notifications: RecordRow[]; syncQueue: RecordRow[];
@@ -1865,7 +1879,7 @@ export function generatePermanentFpcId(allFpcs: RecordRow[] = [], stateName = "O
 }
 
 const seed: State = {
-  role: null, memberId: "F-001", language: "English", offline: false,
+  role: null, currentUser: null, activeFpcId: "FPC-ODI-001", memberId: "F-001", language: "English", offline: false,
   walletBalances: { "F-001": 10000, "F-002": 7000 }, walletTransactions, rateHistory, inputCatalog, inputOrders, purchaseOrders: samplePurchaseOrders, saleRequests, certificates,
   records: {
     farmers, shareholders, sharePurchases: initialSharePurchases as unknown as RecordRow[],

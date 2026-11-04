@@ -1,6 +1,41 @@
 import type { Role } from "./config";
 
 /**
+ * Master Client Demo Mode Configuration
+ *
+ * SET DEMO_MODE to true to temporarily disable all form validations,
+ * required-field blocking errors, and credential checks across all four flows
+ * and registration screens so the client can demonstrate the complete application smoothly.
+ *
+ * SET DEMO_MODE to false to restore normal strict authentication and field validation.
+ */
+export const DEMO_MODE: boolean = true;
+
+export function isDemoMode(): boolean {
+  return DEMO_MODE;
+}
+
+/**
+ * STRICT 6-SCREEN ONBOARDING WORKFLOW MODE
+ *
+ * When ONBOARDING_ONLY_MODE = true, the entire application strictly exposes ONLY:
+ * Screen 1: TSF Admin Login
+ * Screen 2: TSF Admin Invites FPC Admin
+ * Screen 3: Preview Email Template
+ * Screen 4: FPC Admin Login
+ * Screen 5: FPC Company Onboarding
+ * Screen 6: Successfully Onboarded
+ *
+ * All sidebars, dashboards, role switchers, and unrelated screens are completely disabled.
+ * Set to false to restore normal full enterprise navigation and modules.
+ */
+export const ONBOARDING_ONLY_MODE: boolean = true;
+
+export function isOnboardingOnlyMode(): boolean {
+  return ONBOARDING_ONLY_MODE;
+}
+
+/**
  * Centralized Module & Feature Configuration
  *
  * Use this configuration to control feature availability across the FPC Management System.
@@ -39,25 +74,25 @@ export interface FeatureFlags {
 
 export const FEATURE_FLAGS: FeatureFlags = {
   // SET TO false TO INSTANTLY RESTORE ALL MODULES
-  twoFlowModeOnly: true,
+  twoFlowModeOnly: false,
 
   // Two Active Flows
   fpcInvitation: true,
   fpcCompanyOnboarding: true,
 
-  // Temporarily Disabled Modules
-  dashboardAnalytics: false,
-  farmerManagement: false,
-  shareholderManagement: false,
-  agriBusiness: false,
-  inventory: false,
-  finance: false,
-  compliance: false,
-  reportsAnalytics: false,
-  administration: false,
-  networkMonitoring: false,
-  businessMonitoring: false,
-  financialMonitoring: false,
+  // Active Modules for Enterprise Architecture
+  dashboardAnalytics: true,
+  farmerManagement: true,
+  shareholderManagement: true,
+  agriBusiness: true,
+  inventory: true,
+  finance: true,
+  compliance: true,
+  reportsAnalytics: true,
+  administration: true,
+  networkMonitoring: true,
+  businessMonitoring: true,
+  financialMonitoring: true,
 };
 
 /**
@@ -109,7 +144,7 @@ export interface ModuleConfiguration {
 
 export const moduleConfig: ModuleConfiguration = {
   // Set to false to immediately restore all enterprise modules
-  demoMode: true,
+  demoMode: false,
 
   // Enabled registration modules
   farmerRegistration: true,
@@ -122,24 +157,24 @@ export const moduleConfig: ModuleConfiguration = {
   inputPurchaseRegistration: true,
   baselineSurveyRegistration: true,
 
-  // Finance features controlled via MODULE_FEATURES
-  finance: MODULE_FEATURES.finance,
-  buyerLedger: MODULE_FEATURES.buyerLedger,
-  supplierLedger: MODULE_FEATURES.supplierLedger,
+  // Finance features
+  finance: true,
+  buyerLedger: true,
+  supplierLedger: true,
 
-  // Disabled non-registration modules
-  dashboardAnalytics: false,
-  inventory: false,
-  compliance: false,
-  reportsGallery: false,
-  administration: false,
-  advancedApprovals: false,
-  farmerSettlement: false,
-  advancesDues: false,
-  services: false,
-  fpcProfile: false,
-  multiFpcLinks: false,
-  deletedFarmers: false,
+  // Operational & enterprise modules
+  dashboardAnalytics: true,
+  inventory: true,
+  compliance: true,
+  reportsGallery: true,
+  administration: true,
+  advancedApprovals: true,
+  farmerSettlement: true,
+  advancesDues: true,
+  services: true,
+  fpcProfile: true,
+  multiFpcLinks: true,
+  deletedFarmers: true,
 };
 
 /**

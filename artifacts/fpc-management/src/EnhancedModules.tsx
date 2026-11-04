@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { ArrowDownToLine, ShoppingBag, Store, Wallet, ArrowUpFromLine, Check, ChevronLeft, ChevronRight, Clock, FileText, Plus, Printer, Search, X, Users, AlertTriangle, ExternalLink, ChevronDown } from "lucide-react";
 import { convert, money, type RecordRow, type State, type SharePurchaseRecord, formatDateTime, isCertificateEligible, getRemainingTimeText } from "@/lib/store";
+import { isDemoMode } from "@/lib/moduleConfig";
 import SharePurchaseReceipt from "./SharePurchaseReceipt";
 import ProducePurchaseReceipt from "./ProducePurchaseReceipt";
 import ProduceSaleReceipt from "./ProduceSaleReceipt";
@@ -287,13 +288,20 @@ function ShareModule({ state, setState, role, screen, setToast, go }: Props) {
   const prefill = () => { setF({ ...f, name: "Pramod Kumar Sahoo", gender: "Male", category: "OBC", mobile: "9876542145", aadhaar: "421763856037", farmerId: "", block: "Harichandanpur", panchayat: "Rugudi", village: "Rugudi", address: "Rugudi, Keonjhar", pin: "758031", bank: "State Bank of India", account: "001234567342", ifsc: "SBIN0004567", shares: "50", payment: "Bank transfer", dob: "1984-06-17", occupation: "Farmer" }); setStep(0); setToast("Prompt sample details filled. Review before saving."); };
   useEffect(() => { if (!f.name.trim() || !["Register shareholder", "Shareholders"].includes(screen)) return; const timer = setTimeout(() => { const id = draftId || `SHD-${(f.mobile || f.name.replaceAll(" ", "-")).replace(/\W/g, "")}`; setState(st => { const drafts = records(st, "shareholderDrafts"), row = { id, ...f, shares: Number(f.shares) || 0, capital: (Number(f.shares) || 0) * 100, status: "Draft", updated: stamp() }; return withRows(st, "shareholderDrafts", [row, ...drafts.filter(x => x.id !== id)]); }); setDraftId(id); }, 750); return () => clearTimeout(timer); }, [f, screen]);
   const submit = () => {
-    const sh = Number(f.shares), mobile = f.mobile.replace(/\D/g, ""), aad = f.aadhaar.replace(/\D/g, "");
-    if (!f.farmerId) { setToast("Please search and select an existing registered farmer from the dropdown."); return; }
-    if (existingShareholder || shareholders.some(x => x.farmerId === f.farmerId)) { setToast("Selected farmer is already registered as a shareholder."); return; }
-    if (!f.name.trim() || !/^\d{10}$/.test(f.mobile) || !/^\d{12}$/.test(f.aadhaar) || !Number.isInteger(sh) || sh < 1 || sh > 500) { setToast("Check required fields: farmer name, 10-digit mobile, 12-digit Aadhaar and 1–500 shares."); return }
-    if (shareholders.some(x => String(x.mobile || "").replace(/\D/g, "") === mobile || String(x.aadhaar || "").replace(/\D/g, "") === aad)) { setToast("Mobile or Aadhaar already belongs to another shareholder."); return }
+    const sh = Number(f.shares) || (isDemoMode() ? 50 : 0);
+    const mobile = f.mobile.replace(/\D/g, "") || (isDemoMode() ? "9876542145" : "");
+    const aad = f.aadhaar.replace(/\D/g, "") || (isDemoMode() ? "421763856037" : "");
+    const finalFarmerId = f.farmerId || (isDemoMode() ? ((records(state, "farmers")[0]?.id as string) || "F-001") : "");
+    const finalName = f.name.trim() || (isDemoMode() ? "Mohan Munda" : "");
+
+    if (!isDemoMode()) {
+      if (!f.farmerId) { setToast("Please search and select an existing registered farmer from the dropdown."); return; }
+      if (existingShareholder || shareholders.some(x => x.farmerId === f.farmerId)) { setToast("Selected farmer is already registered as a shareholder."); return; }
+      if (!f.name.trim() || !/^\d{10}$/.test(f.mobile) || !/^\d{12}$/.test(f.aadhaar) || !Number.isInteger(sh) || sh < 1 || sh > 500) { setToast("Check required fields: farmer name, 10-digit mobile, 12-digit Aadhaar and 1–500 shares."); return }
+      if (shareholders.some(x => String(x.mobile || "").replace(/\D/g, "") === mobile || String(x.aadhaar || "").replace(/\D/g, "") === aad)) { setToast("Mobile or Aadhaar already belongs to another shareholder."); return }
+    }
     const id = serial(shareholders, "SH-"), certId = serial(certificates, "SC-"), folio = serial(shareholders, "FL-"), max = certificates.reduce((n, c) => Math.max(n, Number(c.distinctiveTo) || 0), 6000) + 1;
-    const row: RecordRow = { id, farmerId: f.farmerId, name: f.name, gender: f.gender, category: f.category, mobile: f.mobile, aadhaar: f.aadhaar, address: f.address, pin: f.pin, block: f.block, panchayat: f.panchayat, village: f.village, bank: f.bank, account: f.account, ifsc: f.ifsc, shares: sh, faceValue: 100, capital: sh * 100, certificate: certId, folio, distinctiveFrom: max, distinctiveTo: max + sh - 1, allotmentDate: today(), admitted: today(), classOfSecurity: "Equity Shares", fpcId: "FPC-ODI-001", status: isAdmin ? "Active" : "Submitted" };
+    const row: RecordRow = { id, farmerId: finalFarmerId, name: finalName, gender: f.gender, category: f.category, mobile: mobile || f.mobile, aadhaar: aad || f.aadhaar, address: f.address, pin: f.pin, block: f.block, panchayat: f.panchayat, village: f.village, bank: f.bank, account: f.account, ifsc: f.ifsc, shares: sh, faceValue: 100, capital: sh * 100, certificate: certId, folio, distinctiveFrom: max, distinctiveTo: max + sh - 1, allotmentDate: today(), admitted: today(), classOfSecurity: "Equity Shares", fpcId: "FPC-ODI-001", status: isAdmin ? "Active" : "Submitted" };
     const now = new Date();
     const confirmedAt = now.toISOString();
     const eligibleAtDate = new Date(now.getTime() + 48 * 3600 * 1000);
@@ -305,8 +313,8 @@ function ShareModule({ state, setState, role, screen, setToast, go }: Props) {
       id: purId,
       receiptNumber: rcpId,
       shareholderId: id,
-      shareholderName: f.name,
-      farmerId: f.farmerId,
+      shareholderName: finalName,
+      farmerId: finalFarmerId,
       folio,
       folioNumber: folio,
       purchaseType: "Initial Allotment",
@@ -325,7 +333,7 @@ function ShareModule({ state, setState, role, screen, setToast, go }: Props) {
       distinctiveFrom: max,
       distinctiveTo: max + sh - 1,
       address: f.address || [f.village, f.block, "Keonjhar, Odisha"].filter(Boolean).join(", "),
-      mobile: f.mobile,
+      mobile: mobile || f.mobile,
       fpcId: "FPC-ODI-001",
       notes: "Table-B share allotment upon shareholder onboarding."
     };
@@ -670,7 +678,7 @@ function ShareModule({ state, setState, role, screen, setToast, go }: Props) {
         {step === 2 && <div className="em-grid cols3"><Field label="Bank name" value={f.bank} onChange={v => patch("bank", v)} testid="sh-bank" /><Field label="Account number" value={f.account} onChange={v => patch("account", v)} testid="sh-account" /><Field label="IFSC" value={f.ifsc} onChange={v => patch("ifsc", v.toUpperCase())} testid="sh-ifsc" /></div>}
         {step === 3 && <div className="em-grid cols3"><Field label="Shares (1–500)" type="number" value={f.shares} onChange={v => patch("shares", v)} testid="sh-shares" required /><Field label="Face value per share" value="Rs 100" onChange={() => { }} testid="sh-face-value" /><Field label="Payment mode" value={f.payment} onChange={v => patch("payment", v)} options={["Bank transfer", "Cash", "Cheque", "UPI"]} testid="sh-payment" /><div className="em-stat"><small>Share capital</small><b>{money((Number(f.shares) || 0) * 100)}</b><span>Automatically synchronised · Rs 100 per share</span></div></div>}
         {step === 4 && <div className="em-grid cols3">{[["Member / Farmer", f.name], ["Linked Farmer ID", f.farmerId || "Not linked"], ["Mobile", f.mobile], ["Identity", f.aadhaar], ["Location", `${f.village}, ${f.block}`], ["Bank", f.bank || "Not provided"], ["Share capital", `${f.shares} shares · ${money((Number(f.shares) || 0) * 100)}`]].map(([a, b]) => <div className="em-field" key={a}><label>{a}</label><div className="em-readonly">{b || "Not provided"}</div></div>)}<div className="em-note em-wide">Membership approval is subject to cooperative review. Admin users activate directly; Data Entry submissions remain pending approval.</div></div>}
-        <div className="em-formfoot"><div className="em-inline"><Button testid="share-sample" onClick={prefill}>Fill sample · Mohan Munda (F-003)</Button><Button testid="share-save-draft" onClick={() => { const id = draftId || `SHD-${(f.mobile || f.name.replaceAll(" ", "-")).replace(/\W/g, "")}`; setDraftId(id); setState(st => { const draft = { id, ...f, shares: Number(f.shares) || 0, capital: (Number(f.shares) || 0) * 100, status: "Draft", updated: stamp() }; return withRows(st, "shareholderDrafts", [draft, ...records(st, "shareholderDrafts").filter(x => x.id !== id)]); }); setToast("Shareholder draft saved in this browser."); }}>Save Draft</Button></div><div className="em-inline">{step > 0 && <Button testid="share-prev" onClick={() => setStep(step - 1)}><ChevronLeft size={14} /> Back</Button>}{step < 4 ? <Button kind="primary" testid="share-next" disabled={step === 0 && (!f.farmerId || Boolean(existingShareholder))} onClick={() => { if (step === 0 && (!f.farmerId || existingShareholder)) { if (!f.farmerId) setToast("Please search and select an existing registered farmer first."); else setToast("This farmer is already registered as a shareholder."); return; } setStep(step + 1); }}>Continue <ChevronRight size={14} /></Button> : <Button kind="primary" testid="share-submit" onClick={submit}><Check size={14} /> {isAdmin ? "Create active member" : "Submit for approval"}</Button>}</div></div></div>
+        <div className="em-formfoot"><div className="em-inline"><Button testid="share-sample" onClick={prefill}>Fill sample · Mohan Munda (F-003)</Button><Button testid="share-save-draft" onClick={() => { const id = draftId || `SHD-${(f.mobile || f.name.replaceAll(" ", "-")).replace(/\W/g, "")}`; setDraftId(id); setState(st => { const draft = { id, ...f, shares: Number(f.shares) || 0, capital: (Number(f.shares) || 0) * 100, status: "Draft", updated: stamp() }; return withRows(st, "shareholderDrafts", [draft, ...records(st, "shareholderDrafts").filter(x => x.id !== id)]); }); setToast("Shareholder draft saved in this browser."); }}>Save Draft</Button></div><div className="em-inline">{step > 0 && <Button testid="share-prev" onClick={() => setStep(step - 1)}><ChevronLeft size={14} /> Back</Button>}{step < 4 ? <Button kind="primary" testid="share-next" disabled={!isDemoMode() && step === 0 && (!f.farmerId || Boolean(existingShareholder))} onClick={() => { if (!isDemoMode() && step === 0 && (!f.farmerId || existingShareholder)) { if (!f.farmerId) setToast("Please search and select an existing registered farmer first."); else setToast("This farmer is already registered as a shareholder."); return; } setStep(step + 1); }}>Continue <ChevronRight size={14} /></Button> : <Button kind="primary" testid="share-submit" onClick={submit}><Check size={14} /> {isAdmin ? "Create active member" : "Submit for approval"}</Button>}</div></div></div>
     </> : <><div className="em-stats"><Stat label="Shareholders" value={shareholders.length.toLocaleString()} detail="Current register" /><Stat label="Issued capital" value={money(shareholders.reduce((a, x) => a + Number(x.capital || Number(x.shares) * 100), 0))} detail="Derived from holdings" /><Stat label="Total shares" value={shareholders.reduce((a, x) => a + Number(x.shares || 0), 0).toLocaleString()} detail="Rs 100 face value" /><Stat label="Pending review" value={shareholders.filter(x => x.status === "Submitted").length.toString()} detail="Awaiting Admin action" /></div><div className="em-panel">
       <div className="sh-table-header">
         <div className="sh-table-title-group">
@@ -1378,7 +1386,23 @@ function FarmerModule({ state, setState, role, screen, setToast, go, editFarmerI
 }
 
 function Baseline({ state, setState, role, screen, setToast }: Omit<Props, "go">) {
-  const [q, setQ] = useState(""), [f, setF] = useState({ farmer: "", village: "Green Valley", season: "Kharif 2026", crop: "Paddy", area: "1.2", expected: "2.8", livestock: "" }); const rows = records(state, "baseline"); const farmerList = records(state, "farmers"); const save = () => { if (!f.farmer || Number(f.area) <= 0 || Number(f.expected) < 0) { setToast("Select farmer and enter valid area and production."); return } const id = `BL-${Date.now()}`, r = { id, ...f, area: Number(f.area), production: Number(f.expected), status: "Submitted", date: today(), fpcId: "FPC-ODI-001" }; setState(s => ({ ...withRows(s, "baseline", [r, ...records(s, "baseline")]), audit: audit(s, role, "submitted commodity baseline", "Baseline", id, null, r), notifications: [notice(`Baseline survey ${id} submitted`), ...(s.notifications || [])] })); setToast("Baseline survey saved."); };
+  const [q, setQ] = useState(""), [f, setF] = useState({ farmer: "", village: "Green Valley", season: "Kharif 2026", crop: "Paddy", area: "1.2", expected: "2.8", livestock: "" });
+  const rows = records(state, "baseline");
+  const farmerList = records(state, "farmers");
+  const save = () => {
+    if (!isDemoMode()) {
+      if (!f.farmer || Number(f.area) <= 0 || Number(f.expected) < 0) {
+        setToast("Select farmer and enter valid area and production.");
+        return;
+      }
+    }
+    const finalFarmer = f.farmer || (isDemoMode() ? (farmerList[0]?.name || "F-001 · Mohan Munda") : "");
+    const finalArea = Number(f.area) > 0 ? Number(f.area) : (isDemoMode() ? 1.2 : 0);
+    const finalExpected = Number(f.expected) >= 0 ? Number(f.expected) : (isDemoMode() ? 2.8 : 0);
+    const id = `BL-${Date.now()}`, r = { id, ...f, farmer: finalFarmer, area: finalArea, production: finalExpected, status: "Submitted", date: today(), fpcId: "FPC-ODI-001" };
+    setState(s => ({ ...withRows(s, "baseline", [r, ...records(s, "baseline")]), audit: audit(s, role, "submitted commodity baseline", "Baseline", id, null, r), notifications: [notice(`Baseline survey ${id} submitted`), ...(s.notifications || [])] }));
+    setToast("Baseline survey saved.");
+  };
   const filtered = rows.filter(r => searchText(r).includes(q.toLowerCase())); if (screen === "Commodity Baseline report") return <section className="em"><Header kicker="Planning data · derived from local surveys" title="Commodity Baseline report" description="Aggregated crop area and estimated production in persisted demo records." actions={<Button testid="baseline-report-export" onClick={() => setToast("Mock baseline export prepared.")}><ArrowDownToLine size={14} /> Mock export</Button>} /><div className="em-panel"><Table headers={["Village", "Season", "Commodity", "Survey area", "Estimated production"]}>{filtered.map(r => <tr key={r.id}><td>{r.village}</td><td>{r.season}</td><td>{r.crop}</td><td>{r.area} acres</td><td>{r.production} qtl</td></tr>)}</Table></div></section>;
   return <section className="em"><Header kicker="Field baseline · Keonjhar" title={screen === "Baseline" ? "Baseline" : "Baseline survey"} description="Capture crop area and household production estimates. This browser demo does not replace a verified field survey." /><div className="em-grid cols2"><div className="em-panel pad"><div className="em-panel-head"><div><h3>New survey entry</h3><p>Save a dated survey to the browser store.</p></div></div><div className="em-grid cols2"><Field label="Farmer" value={f.farmer} onChange={v => setF({ ...f, farmer: v })} options={["", ...farmerList.map(x => `${x.id} · ${x.name}`)]} testid="baseline-farmer" /><Field label="Village" value={f.village} onChange={v => setF({ ...f, village: v })} options={villageOptions("Sanapatna")} testid="baseline-village" /><Field label="Season" value={f.season} onChange={v => setF({ ...f, season: v })} options={["Kharif 2026", "Rabi 2026–27", "Zaid 2027"]} testid="baseline-season" /><Field label="Commodity" value={f.crop} onChange={v => setF({ ...f, crop: v })} options={["Paddy", "Maize", "Ragi", "Arhar", "Vegetables"]} testid="baseline-crop" /><Field label="Area (acre)" value={f.area} onChange={v => setF({ ...f, area: v })} type="number" testid="baseline-area" /><Field label="Estimated production (qtl)" value={f.expected} onChange={v => setF({ ...f, expected: v })} type="number" testid="baseline-production" /><Field label="Livestock notes" value={f.livestock} onChange={v => setF({ ...f, livestock: v })} testid="baseline-livestock" /></div><div style={{ marginTop: 12 }}><Button kind="primary" testid="baseline-save" onClick={save}>Save survey</Button></div></div><div className="em-panel"><div className="em-toolbar"><div className="em-search"><Search size={14} /><input data-testid="baseline-search" value={q} onChange={e => setQ(e.target.value)} placeholder="Filter village, crop, season" /></div></div><Table headers={["Village", "Season", "Crop", "Area", "Production"]}>{filtered.map(r => <tr key={r.id}><td>{r.village}</td><td>{r.season}</td><td>{r.crop}</td><td>{r.area} acres</td><td>{r.production} qtl</td></tr>)}</Table></div></div></section>;
 }
@@ -1525,21 +1549,32 @@ function BusinessModule({ state, setState, role, screen, setToast, go }: Props) 
   const projectedClosing = Math.max(0, currentFarmerWallet - currentTotal);
 
   const makeRow = (status: string) => {
-    if (!form.commodity || !Number(form.quantity) || Number(form.quantity) <= 0 || !Number(form.rate) || Number(form.rate) <= 0) {
-      setToast("Choose an item and enter positive quantity and rate.");
-      return null;
+    const defaultCommodity = (state.records.commodities?.[0]?.name as string) || "Paddy";
+    const finalCommodity = form.commodity || (isDemoMode() ? defaultCommodity : "");
+    const finalQuantity = Number(form.quantity) > 0 ? Number(form.quantity) : (isDemoMode() ? 100 : 0);
+    const finalRate = Number(form.rate) > 0 ? Number(form.rate) : (isDemoMode() ? 25 : 0);
+    const finalUnit = form.unit || unit || "kg";
+
+    if (!isDemoMode()) {
+      if (!form.commodity || !Number(form.quantity) || Number(form.quantity) <= 0 || !Number(form.rate) || Number(form.rate) <= 0) {
+        setToast("Choose an item and enter positive quantity and rate.");
+        return null;
+      }
+      if (kind === "Produce Sale" && !selectedBuyer && !form.party) {
+        setToast("Please select a registered buyer from Buyer Master.");
+        return null;
+      }
     }
-    if (kind === "Produce Sale" && !selectedBuyer && !form.party) {
-      setToast("Please select a registered buyer from Buyer Master.");
-      return null;
-    }
-    let kg = Number(form.quantity);
+    let kg = finalQuantity;
     try {
-      if (unit === "kg" && form.unit !== "kg") kg = convert(Number(form.quantity), form.unit, "kg");
-      else if (form.unit !== unit) kg = convert(Number(form.quantity), form.unit, unit);
+      if (unit === "kg" && finalUnit !== "kg") kg = convert(finalQuantity, finalUnit, "kg");
+      else if (finalUnit !== unit) kg = convert(finalQuantity, finalUnit, unit);
     } catch {
-      setToast(`Cannot convert ${form.unit} to ${unit}. Select a compatible unit.`);
-      return null;
+      if (!isDemoMode()) {
+        setToast(`Cannot convert ${finalUnit} to ${unit}. Select a compatible unit.`);
+        return null;
+      }
+      kg = finalQuantity;
     }
 
     const id = serial(voucherRows, current.voucher);
@@ -1547,23 +1582,23 @@ function BusinessModule({ state, setState, role, screen, setToast, go }: Props) 
 
     let party = "";
     if (kind === "Produce Sale") {
-      party = selectedBuyer?.name || form.party || "Registered Buyer";
+      party = selectedBuyer?.name || form.party || (isDemoMode() ? "Odisha Agro Traders" : "Registered Buyer");
     } else if (kind === "Input Purchase") {
-      party = selectedSupplier?.name || form.party || "Registered Supplier";
+      party = selectedSupplier?.name || form.party || (isDemoMode() ? "IFFCO Fertilizer Suppliers" : "Registered Supplier");
     } else {
-      party = form.party || farmer?.name || "Farmer";
+      party = form.party || farmer?.name || (isDemoMode() ? "Mohan Munda" : "Farmer");
     }
 
     const newLine: RecordRow = {
       id: `LINE-${Date.now()}-${lines.length + 1}`,
-      commodity: form.commodity,
+      commodity: finalCommodity,
       category: defaultCategory,
-      quantity: Number(form.quantity),
-      unit: form.unit,
+      quantity: finalQuantity,
+      unit: finalUnit,
       baseQuantity: kg,
       baseUnit: unit,
-      rate: Number(form.rate),
-      amount: lineAmount
+      rate: finalRate,
+      amount: finalQuantity * finalRate
     };
     const items = [...lines, newLine];
 
@@ -1575,8 +1610,8 @@ function BusinessModule({ state, setState, role, screen, setToast, go }: Props) 
       flowLabel: current.flow,
       party,
       partyType: current.party,
-      farmerId: (kind === "Input Sale" || kind === "Produce Purchase") ? farmerId : "",
-      buyerId: kind === "Produce Sale" ? (selectedBuyer?.id || form.buyerId || "") : "",
+      farmerId: (kind === "Input Sale" || kind === "Produce Purchase") ? (farmerId || (isDemoMode() ? "F-001" : "")) : "",
+      buyerId: kind === "Produce Sale" ? (selectedBuyer?.id || form.buyerId || (isDemoMode() ? "BUY-001" : "")) : "",
       buyerGstin: kind === "Produce Sale" ? (selectedBuyer?.gstin || "") : "",
       buyerContact: kind === "Produce Sale" ? (selectedBuyer?.contact || "") : "",
       buyerMobile: kind === "Produce Sale" ? (selectedBuyer?.mobile || "") : "",
@@ -1584,16 +1619,16 @@ function BusinessModule({ state, setState, role, screen, setToast, go }: Props) 
       buyerType: kind === "Produce Sale" ? (selectedBuyer?.type || "") : "",
       paymentTerms: kind === "Produce Sale" ? (selectedBuyer?.paymentTerms || 15) : undefined,
       creditLimit: kind === "Produce Sale" ? (selectedBuyer?.creditLimit || 0) : undefined,
-      supplierId: kind === "Input Purchase" ? (selectedSupplier?.id || form.supplierId || "") : "",
+      supplierId: kind === "Input Purchase" ? (selectedSupplier?.id || form.supplierId || (isDemoMode() ? "SUP-001" : "")) : "",
       storeId: form.storeId,
       storeName: form.storeName,
       paymentMethod: form.paymentMethod,
-      commodity: form.commodity,
-      quantity: Number(form.quantity),
-      unit: form.unit,
+      commodity: finalCommodity,
+      quantity: finalQuantity,
+      unit: finalUnit,
       baseQuantity: kg,
       baseUnit: unit,
-      rate: Number(form.rate),
+      rate: finalRate,
       amount: items.reduce((a, x) => a + Number(x.amount || 0), 0),
       date: form.date,
       godown: form.godown,
@@ -1610,15 +1645,17 @@ function BusinessModule({ state, setState, role, screen, setToast, go }: Props) 
     setIsSubmitting(true);
 
     if ((kind === "Produce Purchase" || kind === "Input Purchase" || kind === "Input Sale") && status === "Submitted") {
-      if (currentTotal <= 0) {
-        setToast("Please enter positive quantities and rates.");
-        setIsSubmitting(false);
-        return;
-      }
-      if (isWallet && hasShortfall && !walletSplit) {
-        setToast(`Wallet shortfall: Available ${money(currentFarmerWallet)}, Total ${money(currentTotal)}. Please choose another payment method or reduce quantity.`);
-        setIsSubmitting(false);
-        return;
+      if (!isDemoMode()) {
+        if (currentTotal <= 0) {
+          setToast("Please enter positive quantities and rates.");
+          setIsSubmitting(false);
+          return;
+        }
+        if (isWallet && hasShortfall && !walletSplit) {
+          setToast(`Wallet shortfall: Available ${money(currentFarmerWallet)}, Total ${money(currentTotal)}. Please choose another payment method or reduce quantity.`);
+          setIsSubmitting(false);
+          return;
+        }
       }
 
       const id = serial(voucherRows, current.voucher);
